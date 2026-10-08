@@ -5,11 +5,19 @@ evaluating an AI voice agent, and packaging the result for submission.
 
 ## Project status
 
-**Specification and test fixtures.** The repository contains the project
-infrastructure, the requirements and design specification in `docs/`, and
-synthetic machine-readable test fixtures in `evaluation/`. No voice-agent
-functionality, system prompt or voice-platform integration has been implemented
-yet.
+**System Prompt V1 written; not yet deployed.** The repository contains:
+
+- the requirements, business rules, state model and design decisions in `docs/`;
+- synthetic machine-readable test scenarios in `evaluation/`;
+- the first system prompt, [`prompts/system_prompt_v1.md`](prompts/system_prompt_v1.md),
+  with its mapping back to the specification in
+  [`docs/system-prompt-traceability.md`](docs/system-prompt-traceability.md).
+
+The prompt is platform-neutral and has not been run on a voice platform. There
+is no voice-platform integration, no agent code, no call recordings and no
+automated evaluation of the prompt's conversational quality yet. Some prompt
+behaviours rest on project defaults that still need a decision; they are listed
+in section 5 of the traceability document.
 
 ## Technology direction
 
@@ -24,10 +32,10 @@ Further dependencies will be added only when the work that needs them begins.
 
 ```
 salesagents-ai-voice-agent/
-├── prompts/              # Prompt files for the agent
+├── prompts/              # System prompt (system_prompt_v1.md)
 ├── tests/                # Automated pytest tests
-├── evaluation/           # Evaluation material and results
-├── docs/                 # Project documentation
+├── evaluation/           # Synthetic test scenarios and their validator
+├── docs/                 # Requirements, rules, state model, decisions, traceability
 ├── submission/           # Final assignment deliverables
 ├── scripts/              # Helper scripts
 ├── .github/
@@ -39,9 +47,21 @@ salesagents-ai-voice-agent/
 └── .gitignore
 ```
 
-`prompts/`, `submission/` and `scripts/` are currently empty placeholders (kept
-in Git with a `.gitkeep` file). See [`docs/`](docs) for the specification and
+`submission/` and `scripts/` are currently empty placeholders (kept in Git with
+a `.gitkeep` file). See [`docs/`](docs) for the specification and
 [`evaluation/README.md`](evaluation/README.md) for the fixture format.
+
+Where to start reading:
+
+| Document | What it holds |
+|---|---|
+| [`docs/assignment-requirements.md`](docs/assignment-requirements.md) | What the assignment requires, and what it leaves unspecified |
+| [`docs/business-rules.md`](docs/business-rules.md) | Eligibility, disqualification, transfer, callback and handoff rules |
+| [`docs/conversation-state-model.md`](docs/conversation-state-model.md) | Call states and transitions |
+| [`docs/design-decisions.md`](docs/design-decisions.md) | Project decisions for points the assignment leaves open |
+| [`docs/system-prompt-architecture.md`](docs/system-prompt-architecture.md) | Prompt structure, precedence and prompt-policy decisions |
+| [`docs/system-prompt-traceability.md`](docs/system-prompt-traceability.md) | Each prompt section mapped to its sources; unapproved defaults |
+| [`docs/test-scenarios.md`](docs/test-scenarios.md) | The test scenarios in prose |
 
 ## Getting started
 
@@ -72,15 +92,24 @@ Tests live in `tests/` and run with pytest:
 
 ```bash
 python -m compileall -q -x '(\.venv|\.git)/' .
-pytest
+python -m pytest -q
+python -m evaluation.fixture_loader
 ```
 
-The current test suite verifies the project foundation (required folders and
-files exist, the CI workflow is valid YAML, secrets are git-ignored) and the
-evaluation fixtures (they are valid, synthetic, and match the specification in
-`docs/`). It does not test a voice agent. Tests are deterministic and need no
-network access or credentials. Tests for later work will be added alongside
-that work.
+The test suite verifies three things:
+
+- **Project foundation:** required folders and files exist, the CI workflow is
+  valid YAML, secrets are git-ignored.
+- **Evaluation fixtures:** they are valid, synthetic, and match the
+  specification in `docs/`.
+- **System prompt structure:** all runtime variables, the seven eligibility
+  points, the four disqualifying answers, the transfer triggers, the handoff
+  gate and the signal precedence are present; no internal IDs, placeholder text
+  or secrets are in the prompt; the traceability document covers every section.
+
+These are structural checks. They do not run the prompt against a model and do
+not judge how well it converses. Tests are deterministic and need no network
+access or credentials.
 
 ## CI/CD strategy
 
@@ -91,7 +120,7 @@ request targeting `main`. It:
 2. Sets up Python 3.12
 3. Installs `requirements.txt`
 4. Validates Python files with `compileall`
-5. Runs `pytest`
+5. Runs the tests with `python -m pytest -q`
 
 There is no deployment step at this stage.
 
