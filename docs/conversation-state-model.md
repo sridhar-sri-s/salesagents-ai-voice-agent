@@ -7,6 +7,7 @@ State machine for the Home Credit Loan Against Property (LAP) qualification call
 - Requirement IDs (`REQ-*`) and ambiguity IDs (`AMB-*`) are defined in [assignment-requirements.md](assignment-requirements.md); rule IDs (`BR-*`) in [business-rules.md](business-rules.md).
 - Transitions the assignment does not define are marked **unspecified** with an `AMB` ID rather than filled in.
 - Behaviour the project has chosen for those gaps is a **design decision** (`DD-*`, see [design-decisions.md](design-decisions.md)). Design-decision states and transitions are kept in [section 9](#9-design-decision-states-and-transitions), apart from the source-defined model in sections 1–8.
+- Prompt-policy decisions (`PD-*`) are project decisions defined in [system-prompt-architecture.md](system-prompt-architecture.md). They add no state and no transition; their effect on existing transitions is recorded in section 9.
 
 ## 1. States
 
@@ -96,6 +97,7 @@ A question that was asked but not answered (because of an interruption, a divers
 | `callback_time` | Preferred callback time given by a busy customer. | Only on the busy path |
 | `transfer_reason` | Existing loan on the property, or wants to reduce current EMI. | Only on the transfer path |
 | `disqualification_reason` | The criterion that was not met. | Only on the disqualification path |
+| `clarification_used` | The tracked items for which the one clarification or re-ask has already been made (PD-01). A tracked item is an internal clarification-tracking sub-value (one per field in section 3.1) or a branch-specific confirmation (the proceed-with-maximum response). It is bookkeeping only: sub-values do not create additional eligibility points. | Per tracked item |
 | `call_outcome` | `QUALIFIED`, `DISQUALIFIED`, `TRANSFER` or `CALLBACK`. Design decisions add `DECLINED_MAXIMUM`, `NOT_INTERESTED`, `INCOMPLETE`, `WRONG_PERSON` and `NO_CALLBACK_TIME` (section 9). | Yes, at `CALL_TERMINATION` |
 
 ### 3.3 Inputs (prompt variables)
@@ -217,12 +219,12 @@ The assignment does not define these. They are deliberately absent from the diag
 | T-17 | `LOAN_AMOUNT_LIMIT_CONFIRMATION` | `NO_QUALIFICATION_CLOSE` | Customer does not want to proceed with the maximum allowed amount. | Respects the decision. Gives no handoff message and does not agree to more than 75 Lakhs. | DD-01 |
 | T-18 | `OFFER_PRESENTATION`, `ELIGIBILITY_COLLECTION`, `LOAN_AMOUNT_LIMIT_CONFIRMATION` | `NO_QUALIFICATION_CLOSE` | Customer clearly declines the offer. | Acknowledges the decision. Asks no further eligibility question and gives no handoff message. | DD-09 |
 | T-19 | `NO_QUALIFICATION_CLOSE` | `CALL_TERMINATION` | Closing delivered. | Ends the call politely. `call_outcome` = `DECLINED_MAXIMUM` (after T-17), `NOT_INTERESTED` (after T-18), `INCOMPLETE` (after T-25), `WRONG_PERSON` (after T-26) or `NO_CALLBACK_TIME` (after T-27). | DD-01, DD-09, DD-11, DD-12, DD-13 |
-| T-20 | `ELIGIBILITY_COLLECTION` | `ELIGIBILITY_COLLECTION` | The answer does not clearly map to one of the assignment's accepted categories. | Asks a clarification question. The field stays `UNANSWERED`. Infers nothing, creates no category, does not disqualify. | DD-06 |
-| T-21 | `ELIGIBILITY_COLLECTION`, `LOAN_AMOUNT_LIMIT_CONFIRMATION` | same state | Customer does not know, or declines to give, a required value. | Explains that the information is needed for preliminary qualification and asks again naturally. The field stays `UNANSWERED`, so the guard on T-12 keeps blocking the handoff. Does not disqualify. | DD-07 |
+| T-20 | `ELIGIBILITY_COLLECTION` | `ELIGIBILITY_COLLECTION` | The answer does not clearly map to one of the assignment's accepted categories, and no clarification has yet been used for that tracked item (PD-01). | Asks a clarification question. The field stays `UNANSWERED`. Infers nothing, creates no category, does not disqualify. | DD-06 |
+| T-21 | `ELIGIBILITY_COLLECTION`, `LOAN_AMOUNT_LIMIT_CONFIRMATION` | same state | Customer does not know, or declines to give, a required value, and no re-ask has yet been used for that tracked item (PD-01). | Explains that the information is needed for preliminary qualification and asks again naturally. The field stays `UNANSWERED`, so the guard on T-12 keeps blocking the handoff. Does not disqualify. | DD-07 |
 | T-22 | `OFFER_PRESENTATION`, `ELIGIBILITY_COLLECTION`, `LOAN_AMOUNT_LIMIT_CONFIRMATION` | same state, unless the new value triggers T-08 or T-10 | Customer explicitly corrects an earlier answer while the conversation is active. | Replaces the earlier value with the corrected one and checks it against its criterion. Does not re-ask other answered points. | DD-08 |
 | T-23 | `IDENTITY_VERIFICATION` | `IDENTITY_VERIFICATION` | The intended customer has not been confirmed. | Does not disclose the LAP offer or eligibility details. Does not request identity data beyond what the assignment provides for. Asks to speak with the intended customer where appropriate. | DD-03, DD-12 |
 | T-24 | `OFFER_PRESENTATION`, `ELIGIBILITY_COLLECTION`, `LOAN_AMOUNT_LIMIT_CONFIRMATION` | `CALLBACK_BUSY` | Customer says they are busy after the greeting stage. | Acknowledges and asks for a preferred callback time. Asks no further eligibility question. | DD-04 |
-| T-25 | `ELIGIBILITY_COLLECTION`, `LOAN_AMOUNT_LIMIT_CONFIRMATION` | `NO_QUALIFICATION_CLOSE` | A required fact still cannot be established after reasonable clarification (following T-20 or T-21). | Closes politely. Does not qualify, does not hand off, and does not tell the customer they are ineligible. | DD-11 |
+| T-25 | `ELIGIBILITY_COLLECTION`, `LOAN_AMOUNT_LIMIT_CONFIRMATION` | `NO_QUALIFICATION_CLOSE` | A tracked item (an internal clarification-tracking sub-value, or the branch-specific proceed-with-maximum confirmation) still cannot be established from the customer's response to the one clarification or re-ask already made for it (PD-01). | Closes politely. Does not qualify, does not hand off, and does not tell the customer they are ineligible. | DD-11 |
 | T-26 | `IDENTITY_VERIFICATION` | `NO_QUALIFICATION_CLOSE` | The person is not the intended customer and the intended customer cannot be brought to the call. | Closes the interaction without disclosing the LAP offer or eligibility information. | DD-12 |
 | T-27 | `CALLBACK_BUSY` | `NO_QUALIFICATION_CLOSE` | The busy customer cannot provide a preferred callback time. | Closes politely without qualification. | DD-13 |
 | T-28 | `GREETING`, `IDENTITY_VERIFICATION` | same state | Before verification, the customer volunteers offer-related information (including a disqualifying value or a transfer trigger). | Discloses no offer or eligibility details and gives no disqualification or transfer message. Continues verification. May preserve the information if useful and technically available. | DD-16 |
@@ -238,7 +240,12 @@ The assignment does not define these. They are deliberately absent from the diag
 | T-03 | Information preserved under T-28 is treated as an out-of-order detail once the customer is verified, and is checked then; T-10 and T-11 stay unavailable from `GREETING` and `IDENTITY_VERIFICATION`. | DD-16 |
 | T-05 | No consent condition is added between the offer and the checklist. A clear refusal takes T-18. | DD-15 |
 | All | Transition conditions are evaluated against the assignment's criteria. `additional_context_from_rag` cannot change a condition or add one. | DD-17 |
-| T-12 | Unchanged. No design decision adds a way to reach `QUALIFIED_HANDOFF` or relaxes its guard. | — |
+| T-07 | A filler-only or otherwise unusable reply to a question that was asked is a failed attempt, and the re-ask that follows is the one clarification for that tracked item. A customer question or interruption is not an attempt and uses nothing up. | PD-01 |
+| T-20, T-21, T-25 | Exactly one clarification or re-ask per tracked item: T-20 or T-21 on the first failed attempt, T-25 on the second. | PD-01 |
+| Guard on T-12 | Clarification tracking does not enter the guard. The final handoff gate remains exactly seven assignment eligibility points; clarification tracking must never increase that number. Occupation and income mode are two internal clarification-tracking sub-values of the single eligibility point 5 (Occupation & Income Mode), and the proceed-with-maximum response is a branch-specific confirmation, not an eighth point. | PD-01 |
+| T-11, T-10, T-18, T-24, T-04 | When one utterance from a verified customer satisfies several, only the first in this order is taken: T-11 (transfer), T-10 (disqualification), T-18 (not interested), T-24 or T-04 (busy). | PD-02 |
+| T-14, T-15, T-19 | The closing delivered on these transitions follows PD-03: the outcome's message, thanks, and nothing further asked. | PD-03 |
+| T-12 | Unchanged. No design decision or prompt-policy decision adds a way to reach `QUALIFIED_HANDOFF` or relaxes its guard. | — |
 
 ### 9.4 Design-decision diagram
 
@@ -263,7 +270,7 @@ stateDiagram-v2
 | Exit path | `call_outcome` | Last thing the customer is told | Decision |
 |---|---|---|---|
 | `NO_QUALIFICATION_CLOSE` after T-17 | `DECLINED_MAXIMUM` | An acknowledgement of their decision; wording not yet decided. | DD-01 |
-| `NO_QUALIFICATION_CLOSE` after T-18 | `NOT_INTERESTED` | An acknowledgement of their decision; wording not yet decided. | DD-09 |
-| `NO_QUALIFICATION_CLOSE` after T-25 | `INCOMPLETE` | A polite close. Not that they are ineligible. | DD-11 |
+| `NO_QUALIFICATION_CLOSE` after T-18 | `NOT_INTERESTED` | An acknowledgement of their decision, and thanks (PD-03). | DD-09 |
+| `NO_QUALIFICATION_CLOSE` after T-25 | `INCOMPLETE` | That the required information could not be established, and thanks. Not that they are ineligible (PD-03). | DD-11 |
 | `NO_QUALIFICATION_CLOSE` after T-26 | `WRONG_PERSON` | A polite close with no offer or eligibility information. | DD-12 |
 | `NO_QUALIFICATION_CLOSE` after T-27 | `NO_CALLBACK_TIME` | A polite close. | DD-13 |

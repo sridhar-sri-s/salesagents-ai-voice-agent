@@ -6,6 +6,7 @@ Business rules for the Home Credit Loan Against Property (LAP) qualification cal
 - Every rule traces to a requirement. Rules marked **Derived** are logical consequences recorded for testability, not additional business rules.
 - Where the assignment is silent, the rule says so and cites the `AMB` ID. No answer is assumed in sections 1–7.
 - Where the project has chosen a behaviour for such a point, it is a **design decision** (`DD-*`, see [design-decisions.md](design-decisions.md)). Design-decision rules appear only in [section 8](#8-design-decision-rules), never in the source-rule tables.
+- Prompt-policy decisions (`PD-*`) are project decisions defined in [system-prompt-architecture.md](system-prompt-architecture.md). Their rules appear only in [section 9](#9-prompt-policy-rules).
 
 ## 1. Eligibility rules
 
@@ -126,6 +127,8 @@ The relative priority of transfer and disqualification when both arise in the sa
 
 Also by design decision, not by the assignment: the rules in sections 1–5 take precedence over `additional_context_from_rag` (DD-17, BR-DD-17), and no offer, disqualification or transfer message is given before the customer is verified (DD-16, BR-DD-16).
 
+By prompt-policy decision PD-02 (project-level, not PDF-derived), when one utterance carries several signals they rank: transfer, disqualification, not interested, busy, normal eligibility flow (BR-PD-02).
+
 ## 8. Design-decision rules
 
 > **These rules are project design decisions, not requirements from the assignment PDF.** Each one fills a gap the assignment leaves. Full reasoning is in [design-decisions.md](design-decisions.md). None of them adds, removes or changes an eligibility criterion.
@@ -149,3 +152,14 @@ Also by design decision, not by the assignment: the rules in sections 1–5 take
 | BR-DD-15 | There is no separate mandatory "consent to proceed" question. A customer who clearly declines participation, or does not want the offer or the process, follows the not-interested path (BR-DD-09). | DD-15 | AMB-05 |
 | BR-DD-16 | Before the intended customer is verified, the agent discloses no offer or eligibility details, including in response to offer-related information the customer volunteers. Such information is preserved only if useful for the later verified interaction and technically available in the conversation state; once the customer is verified it is checked like any other out-of-order detail. | DD-16 | AMB-12, AMB-13 |
 | BR-DD-17 | The assignment's eligibility and business rules take precedence over `additional_context_from_rag`. Retrieved context must not override or add eligibility criteria and must not justify inventing facts. | DD-17 | AMB-17 |
+
+## 9. Prompt-policy rules
+
+> **These rules are project prompt-policy decisions, not requirements from the assignment PDF.** They are defined in [system-prompt-architecture.md](system-prompt-architecture.md), section 7.1. None of them adds, removes or changes an eligibility criterion or the handoff gate.
+
+| Rule | Statement | Decision | Refines |
+|---|---|---|---|
+| BR-PD-01 | **Clarification limit.** The customer's first response to a question is the initial attempt. If it is unclear, incomplete or maps to no accepted category, the agent makes exactly one clarification or re-ask for that tracked item. If it still cannot be established, the outcome is incomplete. A customer question or interruption does not consume an attempt, and a usable answer is always accepted. The customer is never called disqualified unless a documented disqualifying criterion was actually provided. | PD-01 | BR-DD-06, BR-DD-07, BR-DD-11 |
+| BR-PD-01a | **Tracking is not eligibility.** The assignment has exactly seven eligibility points. Internal tracking may count sub-values separately for clarification purposes, but those sub-values do not create additional eligibility points. A tracked item is either an *internal clarification-tracking sub-value* or a *branch-specific confirmation*. Occupation and income mode may be tracked separately for clarification attempts, but together they satisfy one assignment eligibility point, Occupation & Income Mode, which is complete only when both required sub-values are established (BR-EL-05a). The customer's response to whether they want to proceed with the maximum allowed amount is a branch-specific confirmation that arises only above 75 Lakhs; it is not an eighth eligibility point (BR-EL-04a). The final handoff gate remains exactly seven assignment eligibility points; clarification tracking must never increase that number (BR-HO-01). | PD-01 | BR-EL-04a, BR-EL-05a, BR-HO-01 |
+| BR-PD-02 | **Signal precedence.** When one utterance from a verified customer contains several signals, the agent acts on the highest-ranked only: (1) transfer, (2) disqualification, (3) not interested, (4) busy/callback, (5) normal eligibility flow. | PD-02 | BR-DD-02, BR-DD-04, BR-DD-09 |
+| BR-PD-03 | **Closing.** Disqualified: polite explanation that the customer does not meet the criteria for this specific offer at this time, no internal rule names or implementation details, thanks, end. Transfer: specialist-for-loan-transfer message, thanks, end. Not interested: acknowledge, thanks, end. Incomplete: explain that the required information could not be established, never call the customer ineligible, thanks, end. Busy: acknowledge, ask for a preferred callback time, no further qualification in the interaction. How the call is technically ended is left to the voice platform. | PD-03 | BR-DQ-07, BR-TR-04, BR-DD-09, BR-DD-11, BR-CB-01, BR-CB-02 |

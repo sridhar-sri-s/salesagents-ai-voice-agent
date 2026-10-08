@@ -46,7 +46,7 @@ def _utterance_lines(block: str) -> str:
 @by_id
 def test_basis_matches_the_document(scenario):
     basis_line = re.search(r"^- \*\*Basis:\*\*(.*)$", DOC_SCENARIOS[scenario["id"]], re.M)
-    documented = sorted(set(re.findall(r"DD-\d\d", basis_line.group(1)))) if basis_line else []
+    documented = sorted(set(re.findall(r"(?:DD|PD)-\d\d", basis_line.group(1)))) if basis_line else []
     declared = [] if scenario["basis"] == "source" else sorted(scenario["basis"])
     assert declared == documented
 
@@ -219,6 +219,67 @@ def test_validation_keeps_no_qualification_outcomes_apart_from_disqualification(
     scenario = _scenario("TS-U1")
     scenario["expected"]["transitions"] = ["T-25", "T-19"]
     assert any("T-18 must appear exactly when outcome is NOT_INTERESTED" in p for p in _problems(scenario))
+
+
+def test_validation_enforces_the_clarification_limit():
+    second_clarification = _scenario("TS-V1")
+    second_clarification["start"]["clarified"] = ["property_type"]
+    assert any("second clarification" in problem for problem in _problems(second_clarification))
+    premature_close = _scenario("TS-W2")
+    premature_close["start"]["clarified"] = []
+    assert any("one clarification for the tracked item" in problem for problem in _problems(premature_close))
+
+
+def test_clarification_tracking_never_adds_an_eligibility_point():
+    """The handoff gate is exactly seven points; tracked items are bookkeeping (PD-01)."""
+    fields, branch = VOCABULARY["fields"], VOCABULARY["branch_responses"]
+    assert sorted({spec["point"] for spec in fields.values()}) == [1, 2, 3, 4, 5, 6, 7]
+    assert [name for name, spec in fields.items() if spec["point"] == 5] == ["occupation", "income_mode"]
+    assert not set(branch) & set(fields)
+    for scenario in SCENARIOS:
+        if scenario["expected"]["call_outcome"] == "QUALIFIED":
+            assert set(fl.final_fields(scenario)) == set(fields)
+        assert not set(branch) & set(fl.final_fields(scenario))
+
+
+def test_point_five_needs_both_sub_values():
+    partial = _scenario("TS-I3")
+    assert "occupation" in partial["start"]["answered"] and "income_mode" not in fl.final_fields(partial)
+    assert partial["expected"]["call_outcome"] == "INCOMPLETE"
+    qualified = _scenario("TS-G2")
+    del qualified["start"]["answered"]["income_mode"]
+    assert any("QUALIFIED requires" in problem for problem in _problems(qualified))
+
+
+def test_maximum_confirmation_is_tracked_as_a_branch_response():
+    first, second = _scenario("TS-E4"), _scenario("TS-E5")
+    assert fl.tracked_item(first["start"], VOCABULARY) == "proceed_with_maximum"
+    assert "loan_amount" not in fl.final_fields(first) and "loan_amount" not in fl.final_fields(second)
+    assert first["expected"]["end_state"] == "LOAN_AMOUNT_LIMIT_CONFIRMATION"
+    assert second["expected"]["call_outcome"] == "INCOMPLETE"
+    second["start"]["clarified"] = []
+    assert any("one clarification for the tracked item" in problem for problem in _problems(second))
+    unknown = _scenario("TS-E5")
+    unknown["start"]["clarified"] = ["eighth_point"]
+    assert any("unknown clarified items" in problem for problem in _problems(unknown))
+
+
+def test_validation_requires_the_documented_closing():
+    no_thanks = _scenario("TS-C1")
+    no_thanks["expected"]["must"].remove("thank_customer")
+    assert any("must require 'thank_customer'" in problem for problem in _problems(no_thanks))
+    no_explanation = _scenario("TS-V3")
+    no_explanation["expected"]["must"].remove("explain_information_not_established")
+    assert any("explain_information_not_established" in problem for problem in _problems(no_explanation))
+
+
+def test_competing_signals_follow_the_documented_precedence():
+    expected = {"TS-M3": "TRANSFER", "TS-Z1": "TRANSFER", "TS-Z2": "DISQUALIFIED", "TS-Z3": "DISQUALIFIED",
+                "TS-Z4": "NOT_INTERESTED", "TS-Z5": "TRANSFER"}
+    for scenario_id, outcome in expected.items():
+        scenario = _scenario(scenario_id)
+        assert scenario["expected"]["call_outcome"] == outcome
+        assert "ask_callback_time" not in scenario["expected"]["must"]
 
 
 def test_validation_rejects_unknown_references():

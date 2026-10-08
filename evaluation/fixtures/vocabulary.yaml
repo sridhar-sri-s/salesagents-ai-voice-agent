@@ -37,7 +37,10 @@ call_outcomes:
   WRONG_PERSON: {origin: design, decision: DD-12, transition: T-26}
   NO_CALLBACK_TIME: {origin: design, decision: DD-13, transition: T-27}
 
-# The seven eligibility data points. Point 5 has two components.
+# The seven eligibility data points. Point 5 has two required sub-values
+# (occupation, income_mode); it is still ONE point. Each entry below is an
+# internal clarification-tracking sub-value (PD-01), which is why there are
+# eight entries for seven points. Sub-values do not create eligibility points.
 # `eligible` and `disqualifying` repeat the values named in BR-EL-01..07 so
 # that fixtures can be checked for internal consistency. A value in neither
 # list is unclassified (DD-06): it is not eligible and not a disqualification.
@@ -88,6 +91,19 @@ fields:
     type: years
     minimum: 3
     maximum: 15
+
+# Closings that prompt-policy decision PD-03 defines. A scenario ending in one
+# of these must require `thank_customer`.
+closings_with_thanks: [DISQUALIFIED, TRANSFER, NOT_INTERESTED, INCOMPLETE]
+
+# Branch-specific confirmations: required responses that exist only inside a
+# branch of the call. They are tracked for the clarification limit (PD-01) but
+# are NOT eligibility points:
+# the handoff gate counts only the seven points covered by `fields` above.
+branch_responses:
+  proceed_with_maximum:
+    state: LOAN_AMOUNT_LIMIT_CONFIRMATION
+    rule: BR-EL-04a
 
 control_fields:
   loan_amount_requested: Amount originally requested when above 75 Lakhs (Lakhs).
@@ -198,6 +214,15 @@ behaviours:
   assume_previous_interaction_data:
     description: Treats answers from an earlier interaction as known when they are not available to the agent.
     ref: BR-DD-14
+  thank_customer:
+    description: Thanks the customer as part of the closing.
+    ref: BR-PD-03
+  explain_information_not_established:
+    description: Explains that the required information could not be established, without calling the customer ineligible.
+    ref: BR-PD-03
+  expose_internal_details:
+    description: Mentions internal rule names, IDs or implementation details to the customer.
+    ref: BR-PD-03
   apply_unlisted_eligibility_rule:
     description: Applies an eligibility rule the assignment does not contain.
     ref: BR-EL-06a

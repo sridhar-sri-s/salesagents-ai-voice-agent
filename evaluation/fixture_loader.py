@@ -36,7 +36,7 @@ PROFILE_VARIABLES = (
     "language_to_speak",
 )
 SCENARIO_KEYS = {"id", "title", "basis", "profile", "rag_context", "start", "customer_turns", "expected"}
-START_KEYS = {"state", "identity_verified", "offer_presented", "answered", "pending", "control", "notes"}
+START_KEYS = {"state", "identity_verified", "offer_presented", "answered", "pending", "clarified", "control", "notes"}
 EXPECTED_KEYS = {
     "end_state",
     "call_outcome",
@@ -113,6 +113,7 @@ def documented_ids() -> dict:
         "TS": set(re.findall(r"^### (TS-[A-Z]\d)", _read_doc("test-scenarios.md"), re.M)),
         "T": set(transitions),
         "DD": set(re.findall(r"^## (DD-\d\d) ", _read_doc("design-decisions.md"), re.M)),
+        "PD": set(re.findall(r"^### (PD-\d\d) ", _read_doc("system-prompt-architecture.md"), re.M)),
         "BR": set(re.findall(r"BR-[A-Z]{2}-\d\d[a-z]?", _read_doc("business-rules.md"))),
         "transitions": transitions,
     }
@@ -149,6 +150,19 @@ def classify_value(field: str, value, vocabulary: dict) -> str:
 
 def _unknown(values, allowed) -> list:
     return sorted(set(values) - set(allowed))
+
+
+def tracked_item(start: dict, vocabulary: dict) -> str | None:
+    """The item the clarification limit applies to at the start of a scenario (PD-01).
+
+    Inside a branch it is that branch's required response; otherwise it is the
+    pending field. A tracked item is bookkeeping for counting clarifications.
+    It is never an eligibility point, and plays no part in the handoff check.
+    """
+    for name, spec in vocabulary["branch_responses"].items():
+        if spec["state"] == start["state"]:
+            return name
+    return start["pending"]
 
 
 def walk_transitions(start_state: str, transition_ids: list[str], transitions: dict) -> tuple[str, list[str]]:
@@ -219,6 +233,9 @@ def validate_scenario(scenario: dict, vocabulary: dict, profiles: dict, docs: di
     ]
     if _unknown(field_names, fields):
         problem(f"unknown fields {_unknown(field_names, fields)}")
+    trackable = set(fields) | set(vocabulary["branch_responses"])
+    if _unknown(start.get("clarified", []), trackable):
+        problem(f"unknown clarified items {_unknown(start.get('clarified', []), trackable)}")
     for label in ("must", "must_not"):
         if _unknown(expected[label], vocabulary["behaviours"]):
             problem(f"unknown {label} behaviours {_unknown(expected[label], vocabulary['behaviours'])}")
@@ -240,9 +257,9 @@ def validate_scenario(scenario: dict, vocabulary: dict, profiles: dict, docs: di
     basis = scenario["basis"]
     if basis != "source":
         if not isinstance(basis, list) or not basis:
-            problem("basis must be 'source' or a non-empty list of DD ids")
-        elif _unknown(basis, docs["DD"]):
-            problem(f"unknown design decisions {_unknown(basis, docs['DD'])}")
+            problem("basis must be 'source' or a non-empty list of DD and PD ids")
+        elif _unknown(basis, docs["DD"] | docs["PD"]):
+            problem(f"unknown design decisions {_unknown(basis, docs['DD'] | docs['PD'])}")
 
     # Customer turns
     turns = scenario["customer_turns"]
@@ -305,6 +322,19 @@ def validate_scenario(scenario: dict, vocabulary: dict, profiles: dict, docs: di
             problem(f"{spec['transition']} must appear exactly when outcome is {result}")
     if ("transfer_reason" in expected.get("control", {})) != (outcome == "TRANSFER"):
         problem("transfer_reason must be recorded exactly when outcome is TRANSFER")
+
+    # PD-01: exactly one clarification or re-ask per tracked item
+    clarification_used = tracked_item(start, vocabulary) in start.get("clarified", [])
+    if {"T-20", "T-21"} & set(expected["transitions"]) and clarification_used:
+        problem("a second clarification for the same tracked item is not allowed (PD-01)")
+    if "T-25" in expected["transitions"] and not clarification_used:
+        problem("INCOMPLETE requires that the one clarification for the tracked item was already used (PD-01)")
+
+    # PD-03: closings
+    if starts_in_flow and outcome in vocabulary["closings_with_thanks"] and "thank_customer" not in expected["must"]:
+        problem(f"a {outcome} closing must require 'thank_customer' (PD-03)")
+    if outcome == "INCOMPLETE" and "explain_information_not_established" not in expected["must"]:
+        problem("an INCOMPLETE closing must require 'explain_information_not_established' (PD-03)")
     if outcome is not None and "end_call" not in expected["must"]:
         problem("a terminated call must require 'end_call'")
     return errors
@@ -331,6 +361,11 @@ def validate_fixtures() -> list[str]:
             errors.append(f"vocabulary outcome {name}: unknown decision {spec.get('decision')}")
         if spec.get("transition") not in docs["T"]:
             errors.append(f"vocabulary outcome {name}: unknown transition {spec.get('transition')}")
+    for name, spec in vocabulary["branch_responses"].items():
+        if name in vocabulary["fields"]:
+            errors.append(f"branch response {name} must not be an eligibility field")
+        if spec["state"] not in vocabulary["states"] or spec["rule"] not in docs["BR"]:
+            errors.append(f"branch response {name}: unknown state or rule")
 
     ids = Counter(scenario.get("id") for scenario in scenarios)
     errors += [f"duplicate scenario id {sid}" for sid, count in ids.items() if count > 1]
