@@ -5,9 +5,11 @@ evaluating an AI voice agent, and packaging the result for submission.
 
 ## Project status
 
-**Initial setup.** This repository currently contains project infrastructure
-only: folder structure, Python environment definition, a foundation test and a
-CI pipeline. No voice-agent functionality has been implemented yet.
+**Specification and test fixtures.** The repository contains the project
+infrastructure, the requirements and design specification in `docs/`, and
+synthetic machine-readable test fixtures in `evaluation/`. No voice-agent
+functionality, system prompt or voice-platform integration has been implemented
+yet.
 
 ## Technology direction
 
@@ -37,8 +39,9 @@ salesagents-ai-voice-agent/
 └── .gitignore
 ```
 
-Folders other than `tests/` are currently empty placeholders (kept in Git with
-a `.gitkeep` file).
+`prompts/`, `submission/` and `scripts/` are currently empty placeholders (kept
+in Git with a `.gitkeep` file). See [`docs/`](docs) for the specification and
+[`evaluation/README.md`](evaluation/README.md) for the fixture format.
 
 ## Getting started
 
@@ -72,10 +75,12 @@ python -m compileall -q -x '(\.venv|\.git)/' .
 pytest
 ```
 
-The current test suite verifies the project foundation only (required folders
-and files exist, the CI workflow is valid YAML, secrets are git-ignored). Tests
-are deterministic and need no network access or credentials. Tests for later
-work will be added alongside that work.
+The current test suite verifies the project foundation (required folders and
+files exist, the CI workflow is valid YAML, secrets are git-ignored) and the
+evaluation fixtures (they are valid, synthetic, and match the specification in
+`docs/`). It does not test a voice agent. Tests are deterministic and need no
+network access or credentials. Tests for later work will be added alongside
+that work.
 
 ## CI/CD strategy
 
