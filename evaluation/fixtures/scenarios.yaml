@@ -8,14 +8,17 @@
 # ALL CUSTOMER DATA IS SYNTHETIC.
 #
 # Field reference (see evaluation/README.md for the full format):
-#   basis        source, or the list of design decisions (DD-*) the expected
-#                behaviour rests on. DD-based behaviour is a project choice,
-#                not something the assignment PDF states.
+#   basis        source, or the list of design decisions (DD-*) and prompt-policy
+#                decisions (PD-*) the expected behaviour rests on. Both are
+#                project choices, not something the assignment PDF states.
 #   profile      prompt-variable set from profiles.yaml (default: default_en)
 #   rag_context  overrides additional_context_from_rag for this scenario
 #   start        state before the first customer turn
 #     answered   field values already captured (amounts in Lakhs, tenure in years)
 #     pending    the point the agent has just asked, if any
+#     clarified  tracked items whose one clarification or re-ask is already used
+#                (PD-01): a field name, or a branch response from vocabulary.yaml.
+#                Bookkeeping only; these are not eligibility points.
 #   expected
 #     end_state      state after the agent's response to the last turn
 #     call_outcome   set only when end_state is CALL_TERMINATION
@@ -155,7 +158,7 @@ scenarios:
       fields: {property_type: Agricultural}
       next_pending: null
       transitions: [T-10, T-14]
-      must: [disqualification_message, end_call]
+      must: [disqualification_message, thank_customer, end_call]
       must_not: [ask_eligibility_question, handoff_message, transfer_message]
 
   - id: TS-C2
@@ -170,7 +173,7 @@ scenarios:
       fields: {property_type: Agricultural}
       next_pending: null
       transitions: [T-10, T-14]
-      must: [disqualification_message, end_call]
+      must: [disqualification_message, thank_customer, end_call]
       must_not: [ask_eligibility_question, handoff_message]
 
   # ------------------------------------------------------------ D. Missing original documents
@@ -186,7 +189,7 @@ scenarios:
       fields: {documents_available: unavailable}
       next_pending: null
       transitions: [T-10, T-14]
-      must: [disqualification_message, end_call]
+      must: [disqualification_message, thank_customer, end_call]
       must_not: [ask_eligibility_question, handoff_message]
 
   # ------------------------------------------------------------ E. Loan amount above 75 Lakhs
@@ -256,7 +259,7 @@ scenarios:
       fields: {occupation: Self-Employed, income_mode: Cash}
       next_pending: null
       transitions: [T-10, T-14]
-      must: [disqualification_message, end_call]
+      must: [disqualification_message, thank_customer, end_call]
       must_not: [ask_eligibility_question, handoff_message]
 
   - id: TS-F2
@@ -271,7 +274,7 @@ scenarios:
       fields: {occupation: Salaried, income_mode: Cash}
       next_pending: null
       transitions: [T-10, T-14]
-      must: [disqualification_message, end_call]
+      must: [disqualification_message, thank_customer, end_call]
       must_not: [ask_eligibility_question, handoff_message]
 
   # ------------------------------------------------------------ G. Tenure below 3 years
@@ -287,7 +290,7 @@ scenarios:
       fields: {tenure_years: 2}
       next_pending: null
       transitions: [T-10, T-14]
-      must: [disqualification_message, end_call]
+      must: [disqualification_message, thank_customer, end_call]
       must_not: [handoff_message]
 
   - id: TS-G2
@@ -318,7 +321,7 @@ scenarios:
       fields: {tenure_years: 20}
       next_pending: null
       transitions: [T-10, T-14]
-      must: [disqualification_message, end_call]
+      must: [disqualification_message, thank_customer, end_call]
       must_not: [handoff_message]
 
   - id: TS-H2
@@ -445,7 +448,7 @@ scenarios:
       control: {transfer_reason: existing_loan_on_property}
       next_pending: null
       transitions: [T-11, T-15]
-      must: [transfer_message, end_call]
+      must: [transfer_message, thank_customer, end_call]
       must_not: [ask_eligibility_question, disqualification_message, handoff_message]
 
   - id: TS-M2
@@ -462,7 +465,7 @@ scenarios:
       control: {transfer_reason: existing_loan_on_property}
       next_pending: null
       transitions: [T-11, T-15]
-      must: [transfer_message, end_call]
+      must: [transfer_message, thank_customer, end_call]
       must_not: [ask_eligibility_question, handoff_message]
 
   # ------------------------------------------------------------ N. Customer wants lower EMI
@@ -479,7 +482,7 @@ scenarios:
       control: {transfer_reason: reduce_current_emi}
       next_pending: null
       transitions: [T-11, T-15]
-      must: [transfer_message, end_call]
+      must: [transfer_message, thank_customer, end_call]
       must_not: [ask_eligibility_question, disqualification_message]
 
   # ------------------------------------------------------------ O. Interruptions
@@ -573,7 +576,7 @@ scenarios:
       fields: {property_type: Commercial, ownership_status: Joint, occupation: Self-Employed, income_mode: Cash}
       next_pending: null
       transitions: [T-10, T-14]
-      must: [disqualification_message, end_call]
+      must: [disqualification_message, thank_customer, end_call]
       must_not: [ask_eligibility_question, handoff_message]
 
   # ------------------------------------------------------------ R. English / Hindi
@@ -709,7 +712,7 @@ scenarios:
       control: {transfer_reason: existing_loan_on_property}
       next_pending: null
       transitions: [T-11, T-15]
-      must: [transfer_message, end_call]
+      must: [transfer_message, thank_customer, end_call]
       must_not: [disqualification_message, ask_eligibility_question]
 
   - id: TS-T1
@@ -739,7 +742,7 @@ scenarios:
       fields: {}
       next_pending: null
       transitions: [T-18, T-19]
-      must: [polite_close_without_qualification, end_call]
+      must: [polite_close_without_qualification, thank_customer, end_call]
       must_not: [ask_eligibility_question, handoff_message, disqualification_message, transfer_message]
 
   - id: TS-V1
@@ -789,13 +792,14 @@ scenarios:
 
   - id: TS-W2
     title: Customer still refuses a required value
-    basis: [DD-07, DD-11]
+    basis: [DD-07, DD-11, PD-01]
     start:
       state: ELIGIBILITY_COLLECTION
       identity_verified: true
       offer_presented: true
       answered: *p1_p4
       pending: occupation
+      clarified: [occupation]
       notes: The agent has already explained why the information is needed and asked again once.
     customer_turns:
       - "I've told you, I'm not going to discuss my income on a phone call."
@@ -805,7 +809,7 @@ scenarios:
       fields: {}
       next_pending: null
       transitions: [T-25, T-19]
-      must: [polite_close_without_qualification, end_call]
+      must: [polite_close_without_qualification, explain_information_not_established, thank_customer, end_call]
       must_not: [handoff_message, assume_missing_value, disqualification_message]
 
   - id: TS-X1
@@ -856,7 +860,7 @@ scenarios:
       fields: {income_mode: Cash}
       next_pending: null
       transitions: [T-22, T-10, T-14]
-      must: [disqualification_message, end_call]
+      must: [disqualification_message, thank_customer, end_call]
       must_not: [ask_eligibility_question, handoff_message]
 
   - id: TS-Y1
@@ -981,13 +985,14 @@ scenarios:
 
   - id: TS-V3
     title: Answer still fits no category after clarification
-    basis: [DD-06, DD-11]
+    basis: [DD-06, DD-11, PD-01]
     start:
       state: ELIGIBILITY_COLLECTION
       identity_verified: true
       offer_presented: true
       answered: *p1_p4
       pending: occupation
+      clarified: [occupation]
       notes: The customer said they are retired on a pension, and the agent has already asked a clarification question.
     customer_turns:
       - "No, I don't have a job and I don't run any business. I'm just retired, that's all there is to it."
@@ -997,7 +1002,7 @@ scenarios:
       fields: {}
       next_pending: null
       transitions: [T-25, T-19]
-      must: [polite_close_without_qualification, end_call]
+      must: [polite_close_without_qualification, explain_information_not_established, thank_customer, end_call]
       must_not: [handoff_message, disqualification_message, infer_unclassified_value]
 
   - id: TS-Y3
@@ -1013,5 +1018,223 @@ scenarios:
       fields: {property_type: Agricultural}
       next_pending: null
       transitions: [T-10, T-14]
-      must: [disqualification_message, end_call]
+      must: [disqualification_message, thank_customer, end_call]
       must_not: [ask_eligibility_question, handoff_message]
+
+  # ============================================================ Prompt-policy scenarios
+  # Expected behaviour below rests on prompt-policy decisions PD-01 and PD-02
+  # (project decisions, not the assignment PDF).
+
+  - id: TS-V4
+    title: Clarification resolves the answer
+    basis: [DD-06, PD-01]
+    start:
+      state: ELIGIBILITY_COLLECTION
+      identity_verified: true
+      offer_presented: true
+      answered: *none
+      pending: property_type
+      clarified: [property_type]
+      notes: The customer said the property is an empty plot, and the agent has made its one clarification.
+    customer_turns:
+      - "It's in a residential layout, so it's residential."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {property_type: Residential}
+      next_pending: ownership_status
+      transitions: [T-06]
+      must: [ask_pending_point]
+      must_not: [disqualification_message, polite_close_without_qualification]
+
+  - id: TS-W3
+    title: Customer question does not use up the clarification
+    basis: [DD-07, PD-01]
+    start:
+      state: ELIGIBILITY_COLLECTION
+      identity_verified: true
+      offer_presented: true
+      answered: *p1_p5
+      pending: market_value
+      clarified: [market_value]
+      notes: The customer said they did not know the value, and the agent has explained why it is needed and asked again.
+    customer_turns:
+      - "Hold on, which company did you say you were calling from?"
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {}
+      next_pending: market_value
+      transitions: [T-07]
+      must: [address_customer_question, ask_pending_point]
+      must_not: [polite_close_without_qualification, assume_missing_value, handoff_message]
+
+  - id: TS-P3
+    title: Second reply with no usable answer
+    basis: [DD-11, PD-01]
+    start:
+      state: ELIGIBILITY_COLLECTION
+      identity_verified: true
+      offer_presented: true
+      answered: *p1_p2
+      pending: documents_available
+      clarified: [documents_available]
+      notes: The customer replied only with fillers, and the agent has asked again once.
+    customer_turns:
+      - "Hmm... I mean... I don't know, we'll see..."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: INCOMPLETE
+      fields: {}
+      next_pending: null
+      transitions: [T-25, T-19]
+      must: [polite_close_without_qualification, explain_information_not_established, thank_customer, end_call]
+      must_not: [ask_eligibility_question, assume_missing_value, disqualification_message, handoff_message]
+
+  - id: TS-I3
+    title: Income mode still not established after its re-ask
+    basis: [PD-01]
+    start:
+      state: ELIGIBILITY_COLLECTION
+      identity_verified: true
+      offer_presented: true
+      answered:
+        property_type: Residential
+        ownership_status: Sole
+        documents_available: available
+        loan_amount: 40
+        occupation: Salaried
+      pending: income_mode
+      clarified: [income_mode]
+      notes: The customer gave the occupation only, and the agent has asked for the income mode once.
+    customer_turns:
+      - "Oh, it varies, I can't really say."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: INCOMPLETE
+      fields: {}
+      next_pending: null
+      transitions: [T-25, T-19]
+      must: [polite_close_without_qualification, explain_information_not_established, thank_customer, end_call]
+      must_not: [assume_missing_value, ask_eligibility_question, disqualification_message, handoff_message]
+
+  - id: TS-E4
+    title: Unclear reply to the maximum-amount question
+    basis: [PD-01]
+    start:
+      state: LOAN_AMOUNT_LIMIT_CONFIRMATION
+      identity_verified: true
+      offer_presented: true
+      answered: *p1_p3
+      pending: loan_amount
+      control: {loan_amount_requested: 100}
+    customer_turns:
+      - "Hmm, seventy-five... I don't know, let me think about that."
+    expected:
+      end_state: LOAN_AMOUNT_LIMIT_CONFIRMATION
+      call_outcome: null
+      fields: {}
+      next_pending: loan_amount
+      transitions: [T-07]
+      must: [ask_proceed_with_maximum]
+      must_not: [accept_amount_above_limit, assume_missing_value, polite_close_without_qualification, disqualification_message]
+
+  - id: TS-E5
+    title: Still no answer to the maximum-amount question
+    basis: [PD-01]
+    start:
+      state: LOAN_AMOUNT_LIMIT_CONFIRMATION
+      identity_verified: true
+      offer_presented: true
+      answered: *p1_p3
+      pending: loan_amount
+      clarified: [proceed_with_maximum]
+      control: {loan_amount_requested: 100}
+      notes: The first reply to the maximum-amount question was unclear, and the agent has asked it again once.
+    customer_turns:
+      - "I really can't decide that right now."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: INCOMPLETE
+      fields: {}
+      next_pending: null
+      transitions: [T-25, T-19]
+      must: [polite_close_without_qualification, explain_information_not_established, thank_customer, end_call]
+      must_not: [accept_amount_above_limit, assume_missing_value, disqualification_message, handoff_message]
+
+  - id: TS-Z1
+    title: Transfer trigger and busy together
+    basis: [PD-02]
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p2, pending: documents_available}
+    customer_turns:
+      - "I'm about to step into a meeting, but quickly, there's already a loan on this property."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: TRANSFER
+      fields: {}
+      control: {transfer_reason: existing_loan_on_property}
+      next_pending: null
+      transitions: [T-11, T-15]
+      must: [transfer_message, thank_customer, end_call]
+      must_not: [ask_callback_time, ask_eligibility_question, disqualification_message]
+
+  - id: TS-Z2
+    title: Disqualifying answer and not interested together
+    basis: [PD-02]
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *none, pending: property_type}
+    customer_turns:
+      - "It's agricultural land, and honestly I'm not interested anyway."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: DISQUALIFIED
+      fields: {property_type: Agricultural}
+      next_pending: null
+      transitions: [T-10, T-14]
+      must: [disqualification_message, thank_customer, end_call]
+      must_not: [ask_eligibility_question, handoff_message, expose_internal_details]
+
+  - id: TS-Z3
+    title: Disqualifying answer and busy together
+    basis: [PD-02]
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p4, pending: occupation}
+    customer_turns:
+      - "I'm driving right now, but my income is all cash, if that matters."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: DISQUALIFIED
+      fields: {income_mode: Cash}
+      next_pending: null
+      transitions: [T-10, T-14]
+      must: [disqualification_message, thank_customer, end_call]
+      must_not: [ask_callback_time, ask_eligibility_question, handoff_message]
+
+  - id: TS-Z4
+    title: Not interested and busy together
+    basis: [PD-02]
+    start: {state: OFFER_PRESENTATION, identity_verified: true, offer_presented: true, answered: *none, pending: null}
+    customer_turns:
+      - "I'm busy right now, and anyway I don't want any loan."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: NOT_INTERESTED
+      fields: {}
+      next_pending: null
+      transitions: [T-18, T-19]
+      must: [polite_close_without_qualification, thank_customer, end_call]
+      must_not: [ask_callback_time, ask_eligibility_question, disqualification_message]
+
+  - id: TS-Z5
+    title: Transfer trigger and not interested together
+    basis: [PD-02]
+    start: {state: OFFER_PRESENTATION, identity_verified: true, offer_presented: true, answered: *none, pending: null}
+    customer_turns:
+      - "I'm not interested in a new loan, I'm already paying one off on this house."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: TRANSFER
+      fields: {}
+      control: {transfer_reason: existing_loan_on_property}
+      next_pending: null
+      transitions: [T-11, T-15]
+      must: [transfer_message, thank_customer, end_call]
+      must_not: [ask_eligibility_question, disqualification_message, polite_close_without_qualification]

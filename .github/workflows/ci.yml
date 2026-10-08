@@ -31,4 +31,4 @@ jobs:
         run: python -m compileall -q -x '(\.venv|\.git)/' .
 
       - name: Run tests
-        run: pytest
+        run: python -m pytest -q

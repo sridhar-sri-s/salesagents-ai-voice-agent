@@ -10,7 +10,7 @@ This folder contains **no voice-agent implementation and no system prompt**. It 
 
 | File | Contents |
 |---|---|
-| `fixtures/scenarios.yaml` | The 56 scenarios of [`docs/test-scenarios.md`](../docs/test-scenarios.md), one entry per scenario ID. |
+| `fixtures/scenarios.yaml` | The 67 scenarios of [`docs/test-scenarios.md`](../docs/test-scenarios.md), one entry per scenario ID. |
 | `fixtures/profiles.yaml` | Synthetic prompt-variable sets (English/Hindi, female/male agent). |
 | `fixtures/vocabulary.yaml` | The allowed states, call outcomes, fields, field values and behaviour labels, each pointing to the rule or decision it comes from. |
 | `fixture_loader.py` | Loads the fixtures and validates them against each other and against `docs/`. |
@@ -31,6 +31,7 @@ The documents stay the authority. The fixtures do not restate the prose of a sce
     offer_presented: true
     answered: {...}              # fields already captured
     pending: loan_amount         # the point the agent has just asked, or null
+    clarified: []                # optional; tracked items whose one clarification is already used (PD-01)
   customer_turns:                # what the customer says, one entry per turn
     - "I need about one crore for my business expansion."
     - "Hmm, okay, seventy-five is fine then, let's go with that."
@@ -46,8 +47,9 @@ The documents stay the authority. The fixtures do not restate the prose of a sce
 ```
 
 - Amounts are in Lakhs and tenure is in years. A spoken range is written `{min: 80, max: 85}`.
-- `basis: source` means the expected behaviour rests on the assignment alone. A list of `DD-*` IDs means it rests on project design decisions, which are not requirements from the assignment PDF.
+- `basis: source` means the expected behaviour rests on the assignment alone. A list of `DD-*` (design decision) or `PD-*` (prompt-policy decision) IDs means it rests on project decisions, which are not requirements from the assignment PDF.
 - `optional_fields` holds values the agent may capture but is not required to.
+- `clarified` lists tracked items: a field name (an internal clarification-tracking sub-value) or a branch-specific confirmation such as `proceed_with_maximum`. It is bookkeeping for the clarification limit. The eight field entries cover seven eligibility points, because point 5 has two sub-values (`occupation`, `income_mode`).
 - `must` and `must_not` use the behaviour labels defined in `vocabulary.yaml`. They are what an evaluator will look for in a transcript.
 
 ## Validation
@@ -67,6 +69,9 @@ The checks confirm that:
 - a `QUALIFIED` outcome has all seven points answered with eligible values;
 - a `DISQUALIFIED` outcome has a value the assignment names as disqualifying, and no other outcome continues past one;
 - a `TRANSFER` outcome records one of the two documented transfer triggers;
+- there is exactly one clarification per tracked item: no second clarification, and no `INCOMPLETE` close without one (PD-01);
+- clarification tracking never adds an eligibility point: a `QUALIFIED` outcome is checked against the seven points only, and the proceed-with-maximum confirmation is a branch response, not a field;
+- disqualified, transfer, not-interested and incomplete closings require thanking the customer (PD-03);
 - a loan amount above 75 Lakhs is never recorded as the answer;
 - the vocabulary holds only the eligibility values documented in `docs/business-rules.md`;
 - the fixtures contain no phone-number-like digit sequences, email addresses or credential-like entries.
@@ -79,6 +84,7 @@ Validation reads only files in this repository. It needs no network access, API 
 |---|---|
 | Scenario `id`, customer turns, RAG text | [`docs/test-scenarios.md`](../docs/test-scenarios.md) |
 | `basis` (`DD-*`) | [`docs/design-decisions.md`](../docs/design-decisions.md) |
+| `basis` (`PD-*`) | [`docs/system-prompt-architecture.md`](../docs/system-prompt-architecture.md), section 7.1 |
 | States, fields, `transitions` (`T-nn`), `call_outcome` | [`docs/conversation-state-model.md`](../docs/conversation-state-model.md) |
 | Eligible and disqualifying values, behaviour `ref` (`BR-*`) | [`docs/business-rules.md`](../docs/business-rules.md) |
 | Prompt variables in profiles | [`docs/assignment-requirements.md`](../docs/assignment-requirements.md), section 5 |

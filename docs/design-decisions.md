@@ -124,7 +124,7 @@ Design decisions for the Home Credit Loan Against Property (LAP) qualification c
 - **Affected business rules:** BR-EL-00, BR-EL-06, BR-EL-06a, BR-HO-01, BR-HO-03, BR-HO-05; adds BR-DD-07.
 - **Affected state transitions:** T-07, guard on T-12; adds T-21.
 - **Affected test scenarios:** TS-W1, TS-W2.
-- **Left open:** how many times to ask again. How the call closes when the fact can never be established is decided in DD-11.
+- **Left open:** nothing. The number of re-asks is fixed at one by prompt-policy decision PD-01 ([system-prompt-architecture.md](system-prompt-architecture.md)). How the call closes when the fact can never be established is decided in DD-11.
 
 ## DD-08 — Correction of an earlier answer
 
@@ -172,7 +172,7 @@ Design decisions for the Home Credit Loan Against Property (LAP) qualification c
 - **Affected business rules:** BR-HO-01, BR-HO-05, BR-DQ-05, BR-DD-06, BR-DD-07; adds BR-DD-11.
 - **Affected state transitions:** guard on T-12, T-20, T-21, T-19; adds T-25.
 - **Affected test scenarios:** TS-W2, TS-V3.
-- **Left open:** what counts as "reasonable clarification". No number of attempts is fixed.
+- **Left open:** nothing. "Reasonable clarification" is fixed at exactly one clarification by prompt-policy decision PD-01 ([system-prompt-architecture.md](system-prompt-architecture.md)).
 
 ## DD-12 — Wrong person
 
@@ -293,6 +293,6 @@ No remaining point changes who qualifies, who is disqualified or where the call 
 | Currency of the amount | AMB-23 | Wording. The specification writes the amount as the assignment does. |
 | Silence, voicemail, dropped call | AMB-24 | Platform |
 | Strictness of "sequentially" when nothing is volunteered | AMB-25 | The specification uses order 1 to 7 as the default. |
-| What counts as "reasonable clarification" (DD-11) and "where appropriate" (DD-12) | — | Prompt wording |
+| What counts as "where appropriate" (DD-12) | — | Prompt wording |
 
 **Not open, by principle:** no minimum loan amount and no Market Value threshold is applied, because the assignment states neither (AMB-08, AMB-10).

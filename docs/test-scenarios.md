@@ -4,7 +4,7 @@ Test matrix for the Home Credit Loan Against Property (LAP) qualification call.
 
 - States, fields and transitions (`T-nn`) are defined in [conversation-state-model.md](conversation-state-model.md); rules (`BR-*`) in [business-rules.md](business-rules.md); requirements (`REQ-*`) and ambiguities (`AMB-*`) in [assignment-requirements.md](assignment-requirements.md).
 - These are specification-level scenarios for later manual and automated testing. Nothing here is executable yet.
-- Scenarios whose expected behaviour comes from a project design decision carry a **Basis** line naming the `DD-*` decision ([design-decisions.md](design-decisions.md)). Their expected behaviour is a project choice, not something the assignment PDF states. Scenarios without a Basis line rest on the assignment alone.
+- Scenarios whose expected behaviour comes from a project design decision carry a **Basis** line naming the `DD-*` decision ([design-decisions.md](design-decisions.md)) or the `PD-*` prompt-policy decision ([system-prompt-architecture.md](system-prompt-architecture.md)). Their expected behaviour is a project choice, not something the assignment PDF states. Scenarios without a Basis line rest on the assignment alone.
 - Customer utterances are written the way real customers speak, as the assignment requires (REQ-NC-06). Expected behaviour describes *what* the agent must do, not exact wording.
 
 ## Conventions
@@ -32,6 +32,8 @@ Test matrix for the Home Credit Loan Against Property (LAP) qualification call.
 | GF-5 | Invents or commits to an exact interest rate. (Relaying rate information from `additional_context_from_rag` is not judged: AMB-17.) | BR-HO-04 |
 | GF-6 | Speaks a language other than `language_to_speak`, or contradicts `agent_gender` or `agent_name`. | BR-CC-04, BR-CC-09 |
 | GF-7 | Applies an eligibility rule the assignment does not contain (e.g. a market-value threshold). | BR-EL-06a |
+| GF-8 | Ends a disqualified, transfer, not-interested or incomplete call without thanking the customer, or exposes internal rule names or implementation details. *(Prompt-policy decision PD-03, not from the assignment.)* | BR-PD-03 |
+| GF-9 | Makes more than one clarification or re-ask for the same tracked item (an internal clarification-tracking sub-value, or the branch-specific proceed-with-maximum confirmation), or closes as incomplete without having made one. *(Prompt-policy decision PD-01, not from the assignment.)* | BR-PD-01 |
 
 ## Scenario index
 
@@ -80,7 +82,7 @@ Test matrix for the Home Credit Loan Against Property (LAP) qualification call.
 | TS-V1 | DD-06 | Property type that fits no category | clarification asked |
 | TS-V2 | DD-06 | Occupation that fits no category | clarification asked |
 | TS-W1 | DD-07 | Customer does not know the Market Value | explained and asked again |
-| TS-W2 | DD-07, DD-11 | Customer still refuses a required value | `INCOMPLETE`, closed politely |
+| TS-W2 | DD-07, DD-11, PD-01 | Customer still refuses a required value | `INCOMPLETE`, closed politely |
 | TS-X1 | DD-08 | Customer corrects an earlier answer | value replaced, continues |
 | TS-X2 | DD-08 | Correction after disqualification | flow not reopened |
 | TS-X3 | DD-08 | Correction to a non-qualifying value | `DISQUALIFIED` |
@@ -91,8 +93,19 @@ Test matrix for the Home Credit Loan Against Property (LAP) qualification call.
 | TS-T2 | DD-12 | Intended customer cannot come to the call | `WRONG_PERSON` |
 | TS-T3 | DD-16 | Offer-related information volunteered before verification | no disclosure, verification continues |
 | TS-U2 | DD-15 | Neutral reply after the offer | checklist starts, no consent gate |
-| TS-V3 | DD-11 | Answer still fits no category after clarification | `INCOMPLETE`, closed politely |
+| TS-V3 | DD-06, DD-11, PD-01 | Answer still fits no category after clarification | `INCOMPLETE`, closed politely |
 | TS-Y3 | DD-17 | Retrieved context conflicts with an eligibility criterion | `DISQUALIFIED` per the assignment |
+| TS-V4 | PD-01 | Clarification resolves the answer | continues |
+| TS-W3 | PD-01 | Customer question does not use up the clarification | pending point re-asked |
+| TS-P3 | PD-01 | Second reply with no usable answer | `INCOMPLETE`, closed politely |
+| TS-I3 | PD-01 | Income mode still not established after its re-ask | `INCOMPLETE`; point 5 not complete |
+| TS-E4 | PD-01 | Unclear reply to the maximum-amount question | confirmation re-asked once |
+| TS-E5 | PD-01 | Still no answer to the maximum-amount question | `INCOMPLETE`, closed politely |
+| TS-Z1 | PD-02 | Transfer trigger and busy together | `TRANSFER` |
+| TS-Z2 | PD-02 | Disqualifying answer and not interested together | `DISQUALIFIED` |
+| TS-Z3 | PD-02 | Disqualifying answer and busy together | `DISQUALIFIED` |
+| TS-Z4 | PD-02 | Not interested and busy together | `NOT_INTERESTED` |
+| TS-Z5 | PD-02 | Transfer trigger and not interested together | `TRANSFER` |
 
 ---
 
@@ -589,7 +602,7 @@ Test matrix for the Home Credit Loan Against Property (LAP) qualification call.
 
 ### TS-W2 — Customer still refuses a required value
 
-- **Basis:** Design decisions DD-07 and DD-11 (AMB-15).
+- **Basis:** Design decisions DD-07 and DD-11, and prompt-policy decision PD-01 (AMB-15).
 - **Starting state:** `ELIGIBILITY_COLLECTION`; P1–P4 answered. The agent asked P5, the customer declined, and the agent has already explained why it is needed and asked again.
 - **Customer utterance:** "I've told you, I'm not going to discuss my income on a phone call."
 - **Expected agent behaviour:** Closes the interaction politely. Does not qualify the customer and does not give the senior-loan-expert handoff message. Does not record an assumed occupation or income mode. Does not tell the customer they are ineligible or that they do not meet the criteria, because no disqualifying answer was given.
@@ -699,7 +712,7 @@ Test matrix for the Home Credit Loan Against Property (LAP) qualification call.
 
 ### TS-V3 — Answer still fits no category after clarification
 
-- **Basis:** Design decisions DD-06 and DD-11 (AMB-09, AMB-15).
+- **Basis:** Design decisions DD-06 and DD-11, and prompt-policy decision PD-01 (AMB-09, AMB-15).
 - **Starting state:** `ELIGIBILITY_COLLECTION`; P1–P4 answered. The agent asked P5, the customer said they are retired on a pension, and the agent has already asked a clarification question.
 - **Customer utterance:** "No, I don't have a job and I don't run any business. I'm just retired, that's all there is to it."
 - **Expected agent behaviour:** Does not record Salaried or Self-Employed, and does not create a new category. Closes the interaction politely without qualifying the customer. Does not tell the customer they are ineligible, because the assignment does not name this as a disqualifying answer.
@@ -716,6 +729,120 @@ Test matrix for the Home Credit Loan Against Property (LAP) qualification call.
 - **Expected state change:** P1 = Agricultural. → `DISQUALIFICATION` (T-10) → `CALL_TERMINATION`. `call_outcome = DISQUALIFIED`.
 - **Pass:** Disqualification message in the next turn; P2 is not asked.
 - **Fail:** Agent treats the property as eligible because of the retrieved text, or continues the checklist.
+
+## Prompt-policy scenarios
+
+> Every scenario in this section rests on a **prompt-policy decision** (PD-01 or PD-02), named in its Basis line. These are project decisions; the expected behaviour is not stated by the assignment PDF. Closings follow PD-03 (see GF-8).
+
+### TS-V4 — Clarification resolves the answer
+
+- **Basis:** Prompt-policy decision PD-01, with design decision DD-06.
+- **Starting state:** `ELIGIBILITY_COLLECTION`; all fields `UNANSWERED`. The agent asked P1, the customer said the property is an empty plot, and the agent has made its one clarification for P1.
+- **Customer utterance:** "It's in a residential layout, so it's residential."
+- **Expected agent behaviour:** Captures the property type from the customer's own classification and continues with P2.
+- **Expected state change:** P1 = Residential, `ANSWERED`. Stays in `ELIGIBILITY_COLLECTION` (T-06); next pending field is P2.
+- **Pass:** Next question is P2; the call is not closed.
+- **Fail:** Agent closes as incomplete; asks for the property type a third time; or disqualifies.
+
+### TS-W3 — Customer question does not use up the clarification
+
+- **Basis:** Prompt-policy decision PD-01, with design decision DD-07.
+- **Starting state:** `ELIGIBILITY_COLLECTION`; P1–P5 answered. The agent asked P6, the customer said they did not know, and the agent has explained why it is needed and asked again (the one re-ask for P6).
+- **Customer utterance:** "Hold on, which company did you say you were calling from?"
+- **Expected agent behaviour:** Answers the question, then asks P6 again. Does not treat the question as a second failed attempt.
+- **Expected state change:** No field changes. P6 remains `UNANSWERED`. Stays in `ELIGIBILITY_COLLECTION` (T-07). The clarification count for P6 is unchanged.
+- **Pass:** The question is answered and P6 is asked again; the call is not closed.
+- **Fail:** Agent closes as incomplete; ignores the question; or moves on to P7.
+
+### TS-P3 — Second reply with no usable answer
+
+- **Basis:** Prompt-policy decision PD-01, with design decision DD-11.
+- **Starting state:** `ELIGIBILITY_COLLECTION`; P1–P2 answered. The agent asked P3, the customer replied only with fillers, and the agent has asked again (the one re-ask for P3).
+- **Customer utterance:** "Hmm... I mean... I don't know, we'll see..."
+- **Expected agent behaviour:** Does not ask a third time. Explains that the required information could not be established, does not call the customer ineligible, thanks the customer and ends the interaction.
+- **Expected state change:** P3 remains `UNANSWERED`. → `NO_QUALIFICATION_CLOSE` (T-25) → `CALL_TERMINATION` (T-19). `call_outcome = INCOMPLETE`, not `DISQUALIFIED`.
+- **Pass:** Incomplete closing with thanks; no third request for P3; no disqualification or handoff message.
+- **Fail:** Agent asks for P3 again; records documents as available or unavailable; says the customer does not meet the criteria; or hands off.
+
+### TS-I3 — Income mode still not established after its re-ask
+
+- **Basis:** Prompt-policy decision PD-01.
+- **Starting state:** `ELIGIBILITY_COLLECTION`; P1–P4 answered. The agent asked P5; the customer gave the occupation only (Salaried), so the agent asked for the income mode (the one re-ask for that sub-value).
+- **Customer utterance:** "Oh, it varies, I can't really say."
+- **Expected agent behaviour:** Does not ask for the income mode again. Does not treat point 5 as answered because the occupation is known. Explains that the required information could not be established, does not call the customer ineligible, thanks the customer and ends the interaction.
+- **Expected state change:** P5a stays `ANSWERED` (Salaried); P5b remains `UNANSWERED`; eligibility point 5 is not complete. → `NO_QUALIFICATION_CLOSE` (T-25) → `CALL_TERMINATION` (T-19). `call_outcome = INCOMPLETE`, not `DISQUALIFIED`.
+- **Pass:** Incomplete closing with thanks; no handoff; no disqualification message.
+- **Fail:** Agent counts point 5 as complete and moves to P6; assumes Bank or Cash; says the customer does not meet the criteria; or asks for the income mode a third time.
+
+### TS-E4 — Unclear reply to the maximum-amount question
+
+- **Basis:** Prompt-policy decision PD-01.
+- **Starting state:** `LOAN_AMOUNT_LIMIT_CONFIRMATION`; P1–P3 answered. The customer asked for one crore; the agent has explained the limit and asked whether to proceed with the maximum.
+- **Customer utterance:** "Hmm, seventy-five... I don't know, let me think about that."
+- **Expected agent behaviour:** Asks once more whether the customer would like to proceed with the maximum allowed amount. Does not record a loan amount, does not close the call and does not move on to P5.
+- **Expected state change:** Stays in `LOAN_AMOUNT_LIMIT_CONFIRMATION` (T-07). P4 remains `UNANSWERED`. The one re-ask for the confirmation is now used. The response is a branch-specific confirmation, not an eighth eligibility point: there are still exactly seven points, with P4 open.
+- **Pass:** The confirmation question is asked again, once; P4 is not recorded.
+- **Fail:** Agent records 75 Lakhs without agreement; treats the reply as a refusal and closes; asks P5; or disqualifies.
+
+### TS-E5 — Still no answer to the maximum-amount question
+
+- **Basis:** Prompt-policy decision PD-01.
+- **Starting state:** `LOAN_AMOUNT_LIMIT_CONFIRMATION`; P1–P3 answered. The customer's first reply to the maximum-amount question was unclear, and the agent has asked it again (the one re-ask for the confirmation).
+- **Customer utterance:** "I really can't decide that right now."
+- **Expected agent behaviour:** Does not ask a third time. Explains that the required information could not be established, does not call the customer ineligible, thanks the customer and ends the interaction.
+- **Expected state change:** P4 remains `UNANSWERED`. → `NO_QUALIFICATION_CLOSE` (T-25) → `CALL_TERMINATION` (T-19). `call_outcome = INCOMPLETE`, not `DECLINED_MAXIMUM` and not `DISQUALIFIED`.
+- **Pass:** Incomplete closing with thanks; no amount recorded; no handoff or disqualification message.
+- **Fail:** Agent records 75 Lakhs; agrees to more than 75 Lakhs; says the customer does not meet the criteria; or asks again.
+
+### TS-Z1 — Transfer trigger and busy together
+
+- **Basis:** Prompt-policy decision PD-02.
+- **Starting state:** `ELIGIBILITY_COLLECTION`; P1–P2 answered; agent has asked P3.
+- **Customer utterance:** "I'm about to step into a meeting, but quickly, there's already a loan on this property."
+- **Expected agent behaviour:** Acts on the transfer trigger only. Informs the customer that a specialist for loan transfer will contact them shortly, thanks them and ends the interaction. Does not ask for a callback time.
+- **Expected state change:** `transfer_reason` = existing loan on the property. → `LOAN_TRANSFER` (T-11) → `CALL_TERMINATION` (T-15). `call_outcome = TRANSFER`.
+- **Pass:** "Specialist for loan transfer" message with thanks; no callback question; no further eligibility question.
+- **Fail:** Agent asks for a callback time; continues the checklist; or gives two outcomes.
+
+### TS-Z2 — Disqualifying answer and not interested together
+
+- **Basis:** Prompt-policy decision PD-02.
+- **Starting state:** `ELIGIBILITY_COLLECTION`; offer presented; all fields `UNANSWERED`; agent has asked P1.
+- **Customer utterance:** "It's agricultural land, and honestly I'm not interested anyway."
+- **Expected agent behaviour:** Acts on the disqualifying answer only. Politely informs the customer that they do not meet the criteria for this specific offer at this time, thanks them and ends the interaction.
+- **Expected state change:** P1 = Agricultural. → `DISQUALIFICATION` (T-10) → `CALL_TERMINATION` (T-14). `call_outcome = DISQUALIFIED`, not `NOT_INTERESTED`.
+- **Pass:** Disqualification message with thanks; one outcome only.
+- **Fail:** Agent closes as not interested; continues the checklist; or gives two closings.
+
+### TS-Z3 — Disqualifying answer and busy together
+
+- **Basis:** Prompt-policy decision PD-02.
+- **Starting state:** `ELIGIBILITY_COLLECTION`; P1–P4 answered; agent has asked P5.
+- **Customer utterance:** "I'm driving right now, but my income is all cash, if that matters."
+- **Expected agent behaviour:** Acts on the disqualifying answer only. Politely informs the customer that they do not meet the criteria for this specific offer at this time, thanks them and ends the interaction. Does not ask for a callback time.
+- **Expected state change:** P5b = Cash. → `DISQUALIFICATION` (T-10) → `CALL_TERMINATION` (T-14). `call_outcome = DISQUALIFIED`.
+- **Pass:** Disqualification message with thanks; no callback question.
+- **Fail:** Agent asks for a callback time; asks for the occupation or any later point.
+
+### TS-Z4 — Not interested and busy together
+
+- **Basis:** Prompt-policy decision PD-02.
+- **Starting state:** `OFFER_PRESENTATION`; customer verified; agent has presented the offer.
+- **Customer utterance:** "I'm busy right now, and anyway I don't want any loan."
+- **Expected agent behaviour:** Acts on the refusal only. Acknowledges the decision, thanks the customer and ends the interaction. Does not ask for a callback time.
+- **Expected state change:** → `NO_QUALIFICATION_CLOSE` (T-18) → `CALL_TERMINATION` (T-19). `call_outcome = NOT_INTERESTED`, not `CALLBACK`.
+- **Pass:** Acknowledgement with thanks; no callback question; no eligibility question.
+- **Fail:** Agent asks when to call back; starts the checklist.
+
+### TS-Z5 — Transfer trigger and not interested together
+
+- **Basis:** Prompt-policy decision PD-02.
+- **Starting state:** `OFFER_PRESENTATION`; customer verified; agent has presented the offer.
+- **Customer utterance:** "I'm not interested in a new loan, I'm already paying one off on this house."
+- **Expected agent behaviour:** Acts on the transfer trigger only. Informs the customer that a specialist for loan transfer will contact them shortly, thanks them and ends the interaction.
+- **Expected state change:** `transfer_reason` = existing loan on the property. → `LOAN_TRANSFER` (T-11) → `CALL_TERMINATION` (T-15). `call_outcome = TRANSFER`, not `NOT_INTERESTED`.
+- **Pass:** "Specialist for loan transfer" message with thanks; one outcome only.
+- **Fail:** Agent closes as not interested; starts the checklist; or gives two closings.
 
 ---
 
