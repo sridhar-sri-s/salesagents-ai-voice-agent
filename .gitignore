@@ -1,0 +1,42 @@
+# --- Secrets and credentials (never commit) ---
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+
+# --- Python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# --- Test and tooling caches ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# --- Logs and temporary files ---
+logs/
+*.log
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*~
+
+# --- macOS ---
+.DS_Store
+
+# --- VS Code (local settings stay local; shared recommendations may be committed) ---
+.vscode/*
+!.vscode/extensions.json
+*.code-workspace
