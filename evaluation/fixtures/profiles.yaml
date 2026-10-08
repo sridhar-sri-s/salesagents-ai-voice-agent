@@ -1,0 +1,63 @@
+# Synthetic prompt-variable sets for the evaluation fixtures.
+#
+# ALL VALUES ARE SYNTHETIC TEST DATA. No entry describes a real customer.
+# No phone numbers, addresses, account numbers or other personal identifiers
+# are stored here, and none are needed by the assignment.
+#
+# Each profile supplies the prompt variables listed in the assignment (§4):
+#   company_name, customer_name, agent_name, agent_gender, current_date,
+#   current_day, current_time, additional_context_from_rag, language_to_speak
+# conversation_history and customer_utterance are per-turn and are supplied by
+# the scenario, not by the profile.
+#
+# company_name is the value the assignment itself uses.
+# Date/time values are fixed so that runs are deterministic. Their format is
+# not specified by the assignment (AMB-21); these are illustrative.
+
+version: 1
+synthetic: true
+
+profiles:
+  default_en:
+    company_name: Home Credit
+    customer_name: Rahul Sharma
+    agent_name: Priya
+    agent_gender: female
+    current_date: "2026-01-15"
+    current_day: Thursday
+    current_time: "11:00"
+    additional_context_from_rag: ""
+    language_to_speak: English
+
+  default_hi:
+    company_name: Home Credit
+    customer_name: Rahul Sharma
+    agent_name: Priya
+    agent_gender: female
+    current_date: "2026-01-15"
+    current_day: Thursday
+    current_time: "11:00"
+    additional_context_from_rag: ""
+    language_to_speak: Hindi
+
+  male_agent_en:
+    company_name: Home Credit
+    customer_name: Anita Verma
+    agent_name: Arjun
+    agent_gender: male
+    current_date: "2026-01-16"
+    current_day: Friday
+    current_time: "16:30"
+    additional_context_from_rag: ""
+    language_to_speak: English
+
+  male_agent_hi:
+    company_name: Home Credit
+    customer_name: Anita Verma
+    agent_name: Arjun
+    agent_gender: male
+    current_date: "2026-01-16"
+    current_day: Friday
+    current_time: "16:30"
+    additional_context_from_rag: ""
+    language_to_speak: Hindi

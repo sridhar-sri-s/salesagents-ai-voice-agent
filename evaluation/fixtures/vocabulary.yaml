@@ -1,0 +1,203 @@
+# Controlled vocabulary for the evaluation fixtures.
+#
+# This file names things; it does not define them. Definitions live in docs/:
+#   states, fields, transitions  -> docs/conversation-state-model.md
+#   rules (BR-*)                 -> docs/business-rules.md
+#   design decisions (DD-*)      -> docs/design-decisions.md
+# Every entry points back to the ID it comes from. Nothing here is a new rule.
+#
+# origin: source  = stated by the assignment PDF
+# origin: design  = project design decision, not from the assignment PDF
+
+version: 1
+
+states:
+  GREETING: {origin: source}
+  IDENTITY_VERIFICATION: {origin: source}
+  OFFER_PRESENTATION: {origin: source}
+  ELIGIBILITY_COLLECTION: {origin: source}
+  LOAN_AMOUNT_LIMIT_CONFIRMATION: {origin: source}
+  CALLBACK_BUSY: {origin: source}
+  DISQUALIFICATION: {origin: source}
+  LOAN_TRANSFER: {origin: source}
+  QUALIFIED_HANDOFF: {origin: source}
+  CALL_TERMINATION: {origin: source, terminal: true}
+  NO_QUALIFICATION_CLOSE: {origin: design}
+
+# `transition` is the transition that leads to the outcome. A scenario with
+# that outcome must take it, and no other scenario may.
+call_outcomes:
+  QUALIFIED: {origin: source, transition: T-12}
+  DISQUALIFIED: {origin: source, transition: T-10}
+  TRANSFER: {origin: source, transition: T-11}
+  CALLBACK: {origin: design, decision: DD-04, transition: T-13}
+  DECLINED_MAXIMUM: {origin: design, decision: DD-01, transition: T-17}
+  NOT_INTERESTED: {origin: design, decision: DD-09, transition: T-18}
+  INCOMPLETE: {origin: design, decision: DD-11, transition: T-25}
+  WRONG_PERSON: {origin: design, decision: DD-12, transition: T-26}
+  NO_CALLBACK_TIME: {origin: design, decision: DD-13, transition: T-27}
+
+# The seven eligibility data points. Point 5 has two components.
+# `eligible` and `disqualifying` repeat the values named in BR-EL-01..07 so
+# that fixtures can be checked for internal consistency. A value in neither
+# list is unclassified (DD-06): it is not eligible and not a disqualification.
+# Amounts are in Lakhs; tenure is in years.
+fields:
+  property_type:
+    point: 1
+    rule: BR-EL-01
+    type: category
+    eligible: [Residential, Commercial, Industrial]
+    disqualifying: [Agricultural]
+  ownership_status:
+    point: 2
+    rule: BR-EL-02
+    type: category
+    eligible: [Sole, Joint]
+    disqualifying: []
+  documents_available:
+    point: 3
+    rule: BR-EL-03
+    type: category
+    eligible: [available]
+    disqualifying: [unavailable]
+  loan_amount:
+    point: 4
+    rule: BR-EL-04
+    type: amount_lakhs
+    maximum: 75            # above this is not a disqualification: BR-EL-04a
+  occupation:
+    point: 5
+    rule: BR-EL-05
+    type: category
+    eligible: [Salaried, Self-Employed]
+    disqualifying: []
+  income_mode:
+    point: 5
+    rule: BR-EL-05
+    type: category
+    eligible: [Bank]
+    disqualifying: [Cash]
+  market_value:
+    point: 6
+    rule: BR-EL-06
+    type: amount_lakhs     # no threshold: BR-EL-06a
+  tenure_years:
+    point: 7
+    rule: BR-EL-07
+    type: years
+    minimum: 3
+    maximum: 15
+
+control_fields:
+  loan_amount_requested: Amount originally requested when above 75 Lakhs (Lakhs).
+  callback_time: Preferred callback time, as the customer said it.
+  transfer_reason: existing_loan_on_property or reduce_current_emi.
+
+transfer_reasons: [existing_loan_on_property, reduce_current_emi]
+
+languages: [English, Hindi]
+
+# Observable agent behaviours a scenario can require (`must`) or forbid
+# (`must_not`). These are labels for a future evaluator to judge against a
+# transcript. `ref` is the rule or decision the behaviour comes from.
+behaviours:
+  greet_and_introduce:
+    description: Opens the call and introduces itself by agent_name from company_name.
+    ref: BR-CC-09
+  verify_identity:
+    description: Checks that it is speaking with the intended customer.
+    ref: BR-CC-07
+  present_offer:
+    description: Explains the loyalty reason and the LAP offer of up to 75 Lakhs.
+    ref: BR-CC-08
+  disclose_offer_or_eligibility:
+    description: Reveals the LAP offer, its amount, or any eligibility detail.
+    ref: BR-DD-03
+  ask_eligibility_question:
+    description: Asks for any of the seven eligibility data points.
+    ref: BR-EL-00
+  ask_pending_point:
+    description: Asks for the point named in expected.next_pending.
+    ref: BR-CC-06
+  reask_answered_point:
+    description: Asks for a detail that is already answered.
+    ref: BR-CC-05
+  disqualification_message:
+    description: Tells the customer they do not meet the criteria for this specific offer at this time.
+    ref: BR-DQ-07
+  transfer_message:
+    description: Tells the customer a specialist for loan transfer will contact them shortly.
+    ref: BR-TR-04
+  handoff_message:
+    description: Tells the customer a senior loan expert will call back shortly to provide exact interest rates.
+    ref: BR-HO-02
+  end_call:
+    description: Ends the call.
+    ref: BR-DQ-07
+  acknowledge_busy:
+    description: Acknowledges that the customer is busy.
+    ref: BR-CB-01
+  ask_callback_time:
+    description: Asks for a preferred callback time.
+    ref: BR-CB-02
+  explain_loan_limit:
+    description: Explains that the maximum loan amount is 75 Lakhs.
+    ref: BR-EL-04a
+  ask_proceed_with_maximum:
+    description: Asks whether the customer would like to proceed with the maximum allowed amount.
+    ref: BR-EL-04a
+  accept_amount_above_limit:
+    description: Agrees to, records or promises a loan amount above 75 Lakhs.
+    ref: BR-EL-04
+  address_customer_question:
+    description: Responds to the customer's question or interruption instead of talking over it.
+    ref: BR-CC-03
+  defer_rates_to_senior_loan_expert:
+    description: Says that exact interest rates will come from the senior loan expert.
+    ref: BR-HO-04
+  invent_interest_rate:
+    description: Invents or commits to an exact interest rate.
+    ref: BR-HO-04
+  answer_from_rag_context:
+    description: Answers a product question using additional_context_from_rag.
+    ref: BR-DD-10
+  invent_product_information:
+    description: States product information that is not in additional_context_from_rag.
+    ref: BR-DD-10
+  respond_in_language_to_speak:
+    description: Responds in the language given by language_to_speak.
+    ref: BR-CC-04
+  ask_clarification:
+    description: Asks a clarification question about an answer that fits no accepted category.
+    ref: BR-DD-06
+  infer_unclassified_value:
+    description: Assigns an accepted category, or invents a new one, for an answer that does not clearly map.
+    ref: BR-DD-06
+  explain_information_needed:
+    description: Explains that the information is needed for preliminary qualification.
+    ref: BR-DD-07
+  assume_missing_value:
+    description: Records a value the customer did not give.
+    ref: BR-DD-07
+  polite_close_without_qualification:
+    description: Closes politely without qualifying the customer and without calling them ineligible.
+    ref: BR-DD-11
+  ask_for_intended_customer:
+    description: Asks to speak with the intended customer.
+    ref: BR-DD-12
+  request_extra_identity_data:
+    description: Asks for identity-verification data the assignment does not provide for.
+    ref: BR-DD-03
+  reopen_closed_flow:
+    description: Resumes the eligibility flow after the call has entered an exit path.
+    ref: BR-DD-08
+  require_explicit_consent:
+    description: Makes an explicit consent-to-proceed answer a condition for starting the checklist.
+    ref: BR-DD-15
+  assume_previous_interaction_data:
+    description: Treats answers from an earlier interaction as known when they are not available to the agent.
+    ref: BR-DD-14
+  apply_unlisted_eligibility_rule:
+    description: Applies an eligibility rule the assignment does not contain.
+    ref: BR-EL-06a

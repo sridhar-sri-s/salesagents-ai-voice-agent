@@ -1,0 +1,1017 @@
+# Machine-readable form of docs/test-scenarios.md.
+#
+# One entry per scenario, same IDs. The document remains the authority for the
+# prose (expected behaviour, pass and fail conditions); this file carries only
+# what an automated evaluator needs: the starting state, what the customer
+# says, and the expected end state, captured values and behaviours.
+#
+# ALL CUSTOMER DATA IS SYNTHETIC.
+#
+# Field reference (see evaluation/README.md for the full format):
+#   basis        source, or the list of design decisions (DD-*) the expected
+#                behaviour rests on. DD-based behaviour is a project choice,
+#                not something the assignment PDF states.
+#   profile      prompt-variable set from profiles.yaml (default: default_en)
+#   rag_context  overrides additional_context_from_rag for this scenario
+#   start        state before the first customer turn
+#     answered   field values already captured (amounts in Lakhs, tenure in years)
+#     pending    the point the agent has just asked, if any
+#   expected
+#     end_state      state after the agent's response to the last turn
+#     call_outcome   set only when end_state is CALL_TERMINATION
+#     fields         values captured or replaced during the scenario
+#     optional_fields values the agent may capture but is not required to
+#     next_pending   the point the agent should ask next (a list = any of)
+#     transitions    T-nn taken, in order
+#     must / must_not  behaviour labels from vocabulary.yaml
+
+version: 1
+synthetic: true
+
+# Starting-state presets. "P1-P3 answered" in the document means these values.
+presets:
+  none: &none {}
+  p1: &p1
+    property_type: Residential
+  p1_p2: &p1_p2
+    property_type: Residential
+    ownership_status: Sole
+  p1_p3: &p1_p3
+    property_type: Residential
+    ownership_status: Sole
+    documents_available: available
+  p1_p4: &p1_p4
+    property_type: Residential
+    ownership_status: Sole
+    documents_available: available
+    loan_amount: 40
+  p1_p5: &p1_p5
+    property_type: Residential
+    ownership_status: Sole
+    documents_available: available
+    loan_amount: 40
+    occupation: Salaried
+    income_mode: Bank
+  p1_p6: &p1_p6
+    property_type: Residential
+    ownership_status: Sole
+    documents_available: available
+    loan_amount: 40
+    occupation: Salaried
+    income_mode: Bank
+    market_value: 120
+
+scenarios:
+
+  # ------------------------------------------------------------ A. Happy path
+  - id: TS-A1
+    title: All seven points eligible, answered in order
+    basis: source
+    start: {state: GREETING, identity_verified: false, offer_presented: false, answered: *none, pending: null}
+    customer_turns:
+      - "Yes, this is Rahul speaking."
+      - "Okay, sounds interesting, tell me more."
+      - "It's a two-bedroom flat, we live in it."
+      - "It's in my name only."
+      - "Yes, I've got the original papers at home."
+      - "I'm thinking around forty lakhs."
+      - "I work at an IT company, salary comes into my bank account every month."
+      - "Must be about one crore twenty lakhs now."
+      - "I'd like to repay over ten years."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: QUALIFIED
+      fields:
+        property_type: Residential
+        ownership_status: Sole
+        documents_available: available
+        loan_amount: 40
+        occupation: Salaried
+        income_mode: Bank
+        market_value: 120
+        tenure_years: 10
+      next_pending: null
+      transitions: [T-01, T-02, T-03, T-05, T-06, T-12, T-16]
+      must: [greet_and_introduce, verify_identity, present_offer, handoff_message, end_call]
+      must_not: [reask_answered_point, invent_interest_rate, apply_unlisted_eligibility_rule]
+
+  - id: TS-A2
+    title: Industrial property is accepted
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *none, pending: property_type}
+    customer_turns:
+      - "It's a small factory unit in the industrial area."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {property_type: Industrial}
+      next_pending: ownership_status
+      transitions: [T-06]
+      must: [ask_pending_point]
+      must_not: [disqualification_message, reask_answered_point]
+
+  # ------------------------------------------------------------ B. Busy customer
+  - id: TS-B1
+    title: Customer busy at greeting
+    basis: source
+    start: {state: IDENTITY_VERIFICATION, identity_verified: false, offer_presented: false, answered: *none, pending: null}
+    customer_turns:
+      - "Yeah, this is Rahul, but I'm in the middle of a meeting right now."
+    expected:
+      end_state: CALLBACK_BUSY
+      call_outcome: null
+      fields: {}
+      next_pending: null
+      transitions: [T-04]
+      must: [acknowledge_busy, ask_callback_time]
+      must_not: [present_offer, ask_eligibility_question]
+
+  - id: TS-B2
+    title: Busy customer gives a callback time
+    basis: [DD-04]
+    start: {state: CALLBACK_BUSY, identity_verified: false, offer_presented: false, answered: *none, pending: null}
+    customer_turns:
+      - "Call me tomorrow evening, after six."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: CALLBACK
+      fields: {}
+      control: {callback_time: "tomorrow evening, after six"}
+      next_pending: null
+      transitions: [T-13]
+      must: [end_call]
+      must_not: [present_offer, ask_eligibility_question, ask_callback_time]
+
+  # ------------------------------------------------------------ C. Agricultural property
+  - id: TS-C1
+    title: Agricultural property, asked in order
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *none, pending: property_type}
+    customer_turns:
+      - "It's farmland actually, about three acres in my village."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: DISQUALIFIED
+      fields: {property_type: Agricultural}
+      next_pending: null
+      transitions: [T-10, T-14]
+      must: [disqualification_message, end_call]
+      must_not: [ask_eligibility_question, handoff_message, transfer_message]
+
+  - id: TS-C2
+    title: Agricultural property volunteered early
+    basis: source
+    start: {state: OFFER_PRESENTATION, identity_verified: true, offer_presented: false, answered: *none, pending: null}
+    customer_turns:
+      - "Oh nice. I do have some agricultural land I could use for this."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: DISQUALIFIED
+      fields: {property_type: Agricultural}
+      next_pending: null
+      transitions: [T-10, T-14]
+      must: [disqualification_message, end_call]
+      must_not: [ask_eligibility_question, handoff_message]
+
+  # ------------------------------------------------------------ D. Missing original documents
+  - id: TS-D1
+    title: Original documents not available
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p2, pending: documents_available}
+    customer_turns:
+      - "No, I don't have the originals. They got lost years ago when we shifted houses."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: DISQUALIFIED
+      fields: {documents_available: unavailable}
+      next_pending: null
+      transitions: [T-10, T-14]
+      must: [disqualification_message, end_call]
+      must_not: [ask_eligibility_question, handoff_message]
+
+  # ------------------------------------------------------------ E. Loan amount above 75 Lakhs
+  - id: TS-E1
+    title: Above 75 Lakhs, accepts the maximum
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p3, pending: loan_amount}
+    customer_turns:
+      - "I need about one crore for my business expansion."
+      - "Hmm, okay, seventy-five is fine then, let's go with that."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {loan_amount: 75}
+      control: {loan_amount_requested: 100}
+      next_pending: occupation
+      transitions: [T-08, T-09]
+      must: [explain_loan_limit, ask_proceed_with_maximum, ask_pending_point]
+      must_not: [disqualification_message, accept_amount_above_limit, reask_answered_point]
+
+  - id: TS-E2
+    title: Above 75 Lakhs, declines the maximum
+    basis: [DD-01]
+    start:
+      state: LOAN_AMOUNT_LIMIT_CONFIRMATION
+      identity_verified: true
+      offer_presented: true
+      answered: *p1_p3
+      pending: loan_amount
+      control: {loan_amount_requested: 100}
+    customer_turns:
+      - "No, seventy-five won't work for me. I need the full one crore or nothing."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: DECLINED_MAXIMUM
+      fields: {}
+      next_pending: null
+      transitions: [T-17, T-19]
+      must: [polite_close_without_qualification, end_call]
+      must_not: [accept_amount_above_limit, handoff_message, ask_eligibility_question]
+
+  - id: TS-E3
+    title: Exactly 75 Lakhs
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p3, pending: loan_amount}
+    customer_turns:
+      - "The full seventy-five lakhs, if that's possible."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {loan_amount: 75}
+      next_pending: occupation
+      transitions: [T-06]
+      must: [ask_pending_point]
+      must_not: [disqualification_message, ask_proceed_with_maximum]
+
+  # ------------------------------------------------------------ F. Cash income
+  - id: TS-F1
+    title: Self-employed, cash income
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p4, pending: occupation}
+    customer_turns:
+      - "I run a small grocery shop. Mostly it's all cash, customers pay me in cash."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: DISQUALIFIED
+      fields: {occupation: Self-Employed, income_mode: Cash}
+      next_pending: null
+      transitions: [T-10, T-14]
+      must: [disqualification_message, end_call]
+      must_not: [ask_eligibility_question, handoff_message]
+
+  - id: TS-F2
+    title: Salaried, paid in cash
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p4, pending: occupation}
+    customer_turns:
+      - "I have a job, I work at a garment factory, but they pay us in cash at the end of the month."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: DISQUALIFIED
+      fields: {occupation: Salaried, income_mode: Cash}
+      next_pending: null
+      transitions: [T-10, T-14]
+      must: [disqualification_message, end_call]
+      must_not: [ask_eligibility_question, handoff_message]
+
+  # ------------------------------------------------------------ G. Tenure below 3 years
+  - id: TS-G1
+    title: Tenure below 3 years
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p6, pending: tenure_years}
+    customer_turns:
+      - "I want to clear it quickly, in two years."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: DISQUALIFIED
+      fields: {tenure_years: 2}
+      next_pending: null
+      transitions: [T-10, T-14]
+      must: [disqualification_message, end_call]
+      must_not: [handoff_message]
+
+  - id: TS-G2
+    title: Tenure exactly 3 years
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p6, pending: tenure_years}
+    customer_turns:
+      - "Three years should be enough for me."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: QUALIFIED
+      fields: {tenure_years: 3}
+      next_pending: null
+      transitions: [T-12, T-16]
+      must: [handoff_message, end_call]
+      must_not: [disqualification_message]
+
+  # ------------------------------------------------------------ H. Tenure above 15 years
+  - id: TS-H1
+    title: Tenure above 15 years
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p6, pending: tenure_years}
+    customer_turns:
+      - "I'd want a long one, something like twenty years."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: DISQUALIFIED
+      fields: {tenure_years: 20}
+      next_pending: null
+      transitions: [T-10, T-14]
+      must: [disqualification_message, end_call]
+      must_not: [handoff_message]
+
+  - id: TS-H2
+    title: Tenure exactly 15 years
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p6, pending: tenure_years}
+    customer_turns:
+      - "Let's keep it at fifteen years."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: QUALIFIED
+      fields: {tenure_years: 15}
+      next_pending: null
+      transitions: [T-12, T-16]
+      must: [handoff_message, end_call]
+      must_not: [disqualification_message]
+
+  # ------------------------------------------------------------ I. Salaried + bank income
+  - id: TS-I1
+    title: Salaried, salary credited to bank
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p4, pending: occupation}
+    customer_turns:
+      - "I'm a government school teacher, my salary gets credited directly to my account."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {occupation: Salaried, income_mode: Bank}
+      next_pending: market_value
+      transitions: [T-06]
+      must: [ask_pending_point]
+      must_not: [reask_answered_point, disqualification_message]
+
+  - id: TS-I2
+    title: Occupation given, income mode not stated
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p4, pending: occupation}
+    customer_turns:
+      - "I've been working at a private bank for about eight years now."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {occupation: Salaried}
+      next_pending: income_mode
+      transitions: [T-06]
+      must: [ask_pending_point]
+      must_not: [assume_missing_value, reask_answered_point]
+
+  # ------------------------------------------------------------ J. Self-employed + bank income
+  - id: TS-J1
+    title: Self-employed, income via bank
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p4, pending: occupation}
+    customer_turns:
+      - "I have my own textile trading business, and all the payments come through the bank."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {occupation: Self-Employed, income_mode: Bank}
+      next_pending: market_value
+      transitions: [T-06]
+      must: [ask_pending_point]
+      must_not: [reask_answered_point, disqualification_message]
+
+  # ------------------------------------------------------------ K. Joint ownership
+  - id: TS-K1
+    title: Jointly owned property
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1, pending: ownership_status}
+    customer_turns:
+      - "It's jointly owned, in my name and my wife's name."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {ownership_status: Joint}
+      next_pending: documents_available
+      transitions: [T-06]
+      must: [ask_pending_point]
+      must_not: [disqualification_message, apply_unlisted_eligibility_rule]
+
+  # ------------------------------------------------------------ L. Out-of-order answers
+  - id: TS-L1
+    title: One later answer given early
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *none, pending: property_type}
+    customer_turns:
+      - "It's a shop in the main market. I'm looking for about thirty lakhs against it."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {property_type: Commercial, loan_amount: 30}
+      next_pending: ownership_status
+      transitions: [T-06]
+      must: [ask_pending_point]
+      must_not: [reask_answered_point]
+
+  - id: TS-L2
+    title: Later answers given during the offer
+    basis: source
+    start: {state: OFFER_PRESENTATION, identity_verified: true, offer_presented: true, answered: *none, pending: null}
+    customer_turns:
+      - "Good timing. I'm salaried, my pay comes into my bank account, and I'd want to repay in about seven years."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {occupation: Salaried, income_mode: Bank, tenure_years: 7}
+      next_pending: property_type
+      transitions: [T-05, T-06]
+      must: [ask_pending_point]
+      must_not: [reask_answered_point, handoff_message]
+
+  # ------------------------------------------------------------ M. Existing property loan
+  - id: TS-M1
+    title: Existing loan on the property
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *none, pending: property_type}
+    customer_turns:
+      - "It's a residential flat, but I already have a home loan running on it with another bank."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: TRANSFER
+      fields: {}
+      optional_fields: {property_type: Residential}
+      control: {transfer_reason: existing_loan_on_property}
+      next_pending: null
+      transitions: [T-11, T-15]
+      must: [transfer_message, end_call]
+      must_not: [ask_eligibility_question, disqualification_message, handoff_message]
+
+  - id: TS-M2
+    title: Existing loan mentioned in passing, mid-checklist
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p5, pending: market_value}
+    customer_turns:
+      - "Value is around ninety lakhs I think. There's still some loan left on this house, by the way."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: TRANSFER
+      fields: {}
+      optional_fields: {market_value: 90}
+      control: {transfer_reason: existing_loan_on_property}
+      next_pending: null
+      transitions: [T-11, T-15]
+      must: [transfer_message, end_call]
+      must_not: [ask_eligibility_question, handoff_message]
+
+  # ------------------------------------------------------------ N. Customer wants lower EMI
+  - id: TS-N1
+    title: Customer wants to reduce current EMI
+    basis: source
+    start: {state: OFFER_PRESENTATION, identity_verified: true, offer_presented: true, answered: *none, pending: null}
+    customer_turns:
+      - "Honestly, what I really want is to bring down the EMI I'm paying right now. It's too high."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: TRANSFER
+      fields: {}
+      control: {transfer_reason: reduce_current_emi}
+      next_pending: null
+      transitions: [T-11, T-15]
+      must: [transfer_message, end_call]
+      must_not: [ask_eligibility_question, disqualification_message]
+
+  # ------------------------------------------------------------ O. Interruptions
+  - id: TS-O1
+    title: Customer interrupts with a question
+    basis: source
+    rag_context: ""
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p2, pending: documents_available}
+    customer_turns:
+      - "Wait, wait — before that, what interest rate are you giving on this?"
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {}
+      next_pending: documents_available
+      transitions: [T-07]
+      must: [address_customer_question, defer_rates_to_senior_loan_expert, ask_pending_point]
+      must_not: [invent_interest_rate, handoff_message]
+
+  - id: TS-O2
+    title: Customer interrupts with the answer
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1, pending: ownership_status}
+    customer_turns:
+      - "Sole owner, it's only in my name."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {ownership_status: Sole}
+      next_pending: documents_available
+      transitions: [T-06]
+      must: [ask_pending_point]
+      must_not: [reask_answered_point]
+
+  # ------------------------------------------------------------ P. Conversational fillers
+  - id: TS-P1
+    title: Answer wrapped in fillers
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p5, pending: market_value}
+    customer_turns:
+      - "Umm... let me think... you know, like, property rates have gone up, so... I'd say, uh, around eighty, eighty-five lakhs maybe?"
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {market_value: {min: 80, max: 85}}
+      next_pending: tenure_years
+      transitions: [T-06]
+      must: [ask_pending_point]
+      must_not: [reask_answered_point, apply_unlisted_eligibility_rule, disqualification_message]
+
+  - id: TS-P2
+    title: Filler only, no answer
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p2, pending: documents_available}
+    customer_turns:
+      - "Hmm... documents... uh, okay, so... yeah..."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {}
+      next_pending: documents_available
+      transitions: [T-07]
+      must: [ask_pending_point]
+      must_not: [assume_missing_value, disqualification_message]
+
+  # ------------------------------------------------------------ Q. Multiple answers in one sentence
+  - id: TS-Q1
+    title: Several eligible answers in one sentence
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *none, pending: property_type}
+    customer_turns:
+      - "It's my own house, only in my name, I have all the original papers with me, and I need around fifty lakhs for my daughter's wedding."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {property_type: Residential, ownership_status: Sole, documents_available: available, loan_amount: 50}
+      next_pending: occupation
+      transitions: [T-06]
+      must: [ask_pending_point]
+      must_not: [reask_answered_point]
+
+  - id: TS-Q2
+    title: Several answers, one disqualifying
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *none, pending: property_type}
+    customer_turns:
+      - "It's a commercial shop, jointly with my brother. We run the business from there, and all our income is in cash."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: DISQUALIFIED
+      fields: {property_type: Commercial, ownership_status: Joint, occupation: Self-Employed, income_mode: Cash}
+      next_pending: null
+      transitions: [T-10, T-14]
+      must: [disqualification_message, end_call]
+      must_not: [ask_eligibility_question, handoff_message]
+
+  # ------------------------------------------------------------ R. English / Hindi
+  - id: TS-R1
+    title: Hindi call, customer mixes English
+    basis: source
+    profile: default_hi
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *none, pending: property_type}
+    customer_turns:
+      - "Residential flat hai, mere naam pe hai, aur original documents sab ready hain."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {property_type: Residential, ownership_status: Sole, documents_available: available}
+      next_pending: loan_amount
+      transitions: [T-06]
+      must: [respond_in_language_to_speak, ask_pending_point]
+      must_not: [reask_answered_point]
+
+  - id: TS-R2
+    title: English call, customer replies in Hindi
+    basis: [DD-05]
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p4, pending: occupation}
+    customer_turns:
+      - "Main job karta hoon, salary har mahine bank account mein aati hai."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {}
+      optional_fields: {occupation: Salaried, income_mode: Bank}
+      next_pending: [market_value, occupation]   # P6 if the answer was understood, otherwise P5 again
+      transitions: []
+      must: [respond_in_language_to_speak, ask_pending_point]
+      must_not: [disqualification_message, handoff_message]
+
+  # ------------------------------------------------------------ S. Early handoff attempts
+  - id: TS-S1
+    title: Customer asks for the expert before all points
+    basis: source
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p3, pending: loan_amount}
+    customer_turns:
+      - "Look, I'm definitely interested. Can you just have your senior person call me and I'll give him the rest?"
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {}
+      next_pending: loan_amount
+      transitions: [T-07]
+      must: [ask_pending_point]
+      must_not: [handoff_message, end_call]
+
+  - id: TS-S2
+    title: Point skipped by a diversion
+    basis: source
+    start:
+      state: ELIGIBILITY_COLLECTION
+      identity_verified: true
+      offer_presented: true
+      answered:
+        property_type: Residential
+        documents_available: available
+        loan_amount: 40
+        occupation: Salaried
+        income_mode: Bank
+        market_value: 120
+      pending: tenure_years
+    customer_turns:
+      - "Ten years. So that's everything, right? When will I get the call?"
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {tenure_years: 10}
+      next_pending: ownership_status
+      transitions: [T-06]
+      must: [ask_pending_point]
+      must_not: [handoff_message, assume_missing_value]
+
+  - id: TS-S3
+    title: Six of seven answered
+    basis: source
+    start:
+      state: ELIGIBILITY_COLLECTION
+      identity_verified: true
+      offer_presented: true
+      answered:
+        property_type: Residential
+        ownership_status: Sole
+        documents_available: available
+        loan_amount: 40
+        tenure_years: 10
+      pending: occupation
+    customer_turns:
+      - "Yes, salaried, and it all goes to my bank. I think that covers it."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {occupation: Salaried, income_mode: Bank}
+      next_pending: market_value
+      transitions: [T-06]
+      must: [ask_pending_point]
+      must_not: [handoff_message, reask_answered_point]
+
+  # ============================================================ Design-decision scenarios
+  # Expected behaviour below rests on project design decisions (see `basis`),
+  # not on the assignment PDF.
+
+  - id: TS-B3
+    title: Customer becomes busy mid-checklist
+    basis: [DD-04]
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p3, pending: loan_amount}
+    customer_turns:
+      - "Sorry, someone's at the door, I really have to go. Can we do this later?"
+    expected:
+      end_state: CALLBACK_BUSY
+      call_outcome: null
+      fields: {}
+      next_pending: null
+      transitions: [T-24]
+      must: [acknowledge_busy, ask_callback_time]
+      must_not: [ask_eligibility_question, handoff_message, disqualification_message, transfer_message]
+
+  - id: TS-M3
+    title: Transfer trigger and disqualifying answer together
+    basis: [DD-02]
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *none, pending: property_type}
+    customer_turns:
+      - "It's agricultural land, and there's already a loan running on it."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: TRANSFER
+      fields: {}
+      optional_fields: {property_type: Agricultural}
+      control: {transfer_reason: existing_loan_on_property}
+      next_pending: null
+      transitions: [T-11, T-15]
+      must: [transfer_message, end_call]
+      must_not: [disqualification_message, ask_eligibility_question]
+
+  - id: TS-T1
+    title: Someone other than the customer answers
+    basis: [DD-03, DD-12]
+    start: {state: IDENTITY_VERIFICATION, identity_verified: false, offer_presented: false, answered: *none, pending: null}
+    customer_turns:
+      - "No, this is his brother. What's this regarding?"
+    expected:
+      end_state: IDENTITY_VERIFICATION
+      call_outcome: null
+      fields: {}
+      next_pending: null
+      transitions: [T-23]
+      must: [ask_for_intended_customer]
+      must_not: [disclose_offer_or_eligibility, ask_eligibility_question, request_extra_identity_data]
+
+  - id: TS-U1
+    title: Customer is not interested
+    basis: [DD-09]
+    start: {state: OFFER_PRESENTATION, identity_verified: true, offer_presented: true, answered: *none, pending: null}
+    customer_turns:
+      - "No thanks, I'm not looking for any loan right now. Not interested."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: NOT_INTERESTED
+      fields: {}
+      next_pending: null
+      transitions: [T-18, T-19]
+      must: [polite_close_without_qualification, end_call]
+      must_not: [ask_eligibility_question, handoff_message, disqualification_message, transfer_message]
+
+  - id: TS-V1
+    title: Property type that fits no category
+    basis: [DD-06]
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *none, pending: property_type}
+    customer_turns:
+      - "It's just an empty plot, nothing's been built on it yet."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {}
+      next_pending: property_type
+      transitions: [T-20]
+      must: [ask_clarification]
+      must_not: [infer_unclassified_value, disqualification_message]
+
+  - id: TS-V2
+    title: Occupation that fits no category
+    basis: [DD-06]
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p4, pending: occupation}
+    customer_turns:
+      - "I'm retired now, I get my pension every month."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {}
+      next_pending: occupation
+      transitions: [T-20]
+      must: [ask_clarification]
+      must_not: [infer_unclassified_value, assume_missing_value, disqualification_message, handoff_message]
+
+  - id: TS-W1
+    title: Customer does not know the Market Value
+    basis: [DD-07]
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p5, pending: market_value}
+    customer_turns:
+      - "Honestly, I have no idea what it's worth these days."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {}
+      next_pending: market_value
+      transitions: [T-21]
+      must: [explain_information_needed, ask_pending_point]
+      must_not: [assume_missing_value, disqualification_message, handoff_message]
+
+  - id: TS-W2
+    title: Customer still refuses a required value
+    basis: [DD-07, DD-11]
+    start:
+      state: ELIGIBILITY_COLLECTION
+      identity_verified: true
+      offer_presented: true
+      answered: *p1_p4
+      pending: occupation
+      notes: The agent has already explained why the information is needed and asked again once.
+    customer_turns:
+      - "I've told you, I'm not going to discuss my income on a phone call."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: INCOMPLETE
+      fields: {}
+      next_pending: null
+      transitions: [T-25, T-19]
+      must: [polite_close_without_qualification, end_call]
+      must_not: [handoff_message, assume_missing_value, disqualification_message]
+
+  - id: TS-X1
+    title: Customer corrects an earlier answer
+    basis: [DD-08]
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p5, pending: market_value}
+    customer_turns:
+      - "Around ninety lakhs. Oh, and actually make the loan fifty lakhs, not forty."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {market_value: 90, loan_amount: 50}
+      next_pending: tenure_years
+      transitions: [T-06, T-22]
+      must: [ask_pending_point]
+      must_not: [reask_answered_point]
+
+  - id: TS-X2
+    title: Correction after disqualification
+    basis: [DD-08]
+    start:
+      state: DISQUALIFICATION
+      identity_verified: true
+      offer_presented: true
+      answered: {property_type: Agricultural}
+      pending: null
+      notes: The agent has already told the customer they do not meet the criteria.
+    customer_turns:
+      - "No, no, wait. I meant it's a residential house, not farmland."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: DISQUALIFIED
+      fields: {}
+      next_pending: null
+      transitions: [T-14]
+      must: [end_call]
+      must_not: [reopen_closed_flow, ask_eligibility_question, handoff_message]
+
+  - id: TS-X3
+    title: Correction to a non-qualifying value
+    basis: [DD-08]
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p5, pending: market_value}
+    customer_turns:
+      - "Wait, I should correct something. My income actually comes in cash, not into the bank."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: DISQUALIFIED
+      fields: {income_mode: Cash}
+      next_pending: null
+      transitions: [T-22, T-10, T-14]
+      must: [disqualification_message, end_call]
+      must_not: [ask_eligibility_question, handoff_message]
+
+  - id: TS-Y1
+    title: Product question answered from retrieved context
+    basis: [DD-10]
+    rag_context: "The loan amount can be used for business expansion, education or medical expenses."   # illustrative test data, not a product fact
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p2, pending: documents_available}
+    customer_turns:
+      - "Before that, tell me, can I use this money for my daughter's college fees?"
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {}
+      next_pending: documents_available
+      transitions: [T-07]
+      must: [answer_from_rag_context, ask_pending_point]
+      must_not: [invent_product_information, invent_interest_rate]
+
+  - id: TS-Y2
+    title: Product question with nothing retrieved
+    basis: [DD-10]
+    rag_context: ""
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *p1_p2, pending: documents_available}
+    customer_turns:
+      - "And what's the processing fee on this?"
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {}
+      next_pending: documents_available
+      transitions: [T-07]
+      must: [ask_pending_point]
+      must_not: [invent_product_information, invent_interest_rate]
+
+  - id: TS-B4
+    title: Busy customer cannot give a callback time
+    basis: [DD-13]
+    start: {state: CALLBACK_BUSY, identity_verified: false, offer_presented: false, answered: *none, pending: null}
+    customer_turns:
+      - "I really can't say right now, my schedule's all over the place this week."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: NO_CALLBACK_TIME
+      fields: {}
+      next_pending: null
+      transitions: [T-27, T-19]
+      must: [polite_close_without_qualification, end_call]
+      must_not: [present_offer, ask_eligibility_question, handoff_message, disqualification_message]
+
+  - id: TS-B5
+    title: Callback interaction with no earlier answers available
+    basis: [DD-14]
+    start:
+      state: GREETING
+      identity_verified: false
+      offer_presented: false
+      answered: *none
+      pending: null
+      notes: A new interaction after an earlier busy/callback close. conversation_history is empty and no captured answers are supplied.
+    customer_turns:
+      - "Yes, this is Rahul. You people called me yesterday about something."
+    expected:
+      end_state: OFFER_PRESENTATION
+      call_outcome: null
+      fields: {}
+      next_pending: null
+      transitions: [T-01, T-02, T-03]
+      must: [verify_identity, present_offer]
+      must_not: [assume_previous_interaction_data, handoff_message]
+
+  - id: TS-T2
+    title: Intended customer cannot come to the call
+    basis: [DD-12]
+    start:
+      state: IDENTITY_VERIFICATION
+      identity_verified: false
+      offer_presented: false
+      answered: *none
+      pending: null
+      notes: The person has said they are not the customer, and the agent has asked to speak with the intended customer.
+    customer_turns:
+      - "He's travelling, he won't be back for a few days."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: WRONG_PERSON
+      fields: {}
+      next_pending: null
+      transitions: [T-26, T-19]
+      must: [polite_close_without_qualification, end_call]
+      must_not: [disclose_offer_or_eligibility, ask_eligibility_question, request_extra_identity_data]
+
+  - id: TS-T3
+    title: Offer-related information volunteered before verification
+    basis: [DD-16]
+    start: {state: IDENTITY_VERIFICATION, identity_verified: false, offer_presented: false, answered: *none, pending: null}
+    customer_turns:
+      - "Is this about a loan? Because all I've got is some agricultural land, just so you know."
+    expected:
+      end_state: IDENTITY_VERIFICATION
+      call_outcome: null
+      fields: {}
+      optional_fields: {property_type: Agricultural}
+      next_pending: null
+      transitions: [T-28]
+      must: [verify_identity]
+      must_not: [disclose_offer_or_eligibility, disqualification_message, present_offer]
+
+  - id: TS-U2
+    title: Neutral reply after the offer
+    basis: [DD-15]
+    start: {state: OFFER_PRESENTATION, identity_verified: true, offer_presented: true, answered: *none, pending: null}
+    customer_turns:
+      - "Hmm, okay."
+    expected:
+      end_state: ELIGIBILITY_COLLECTION
+      call_outcome: null
+      fields: {}
+      next_pending: property_type
+      transitions: [T-05]
+      must: [ask_pending_point]
+      must_not: [require_explicit_consent, polite_close_without_qualification]
+
+  - id: TS-V3
+    title: Answer still fits no category after clarification
+    basis: [DD-06, DD-11]
+    start:
+      state: ELIGIBILITY_COLLECTION
+      identity_verified: true
+      offer_presented: true
+      answered: *p1_p4
+      pending: occupation
+      notes: The customer said they are retired on a pension, and the agent has already asked a clarification question.
+    customer_turns:
+      - "No, I don't have a job and I don't run any business. I'm just retired, that's all there is to it."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: INCOMPLETE
+      fields: {}
+      next_pending: null
+      transitions: [T-25, T-19]
+      must: [polite_close_without_qualification, end_call]
+      must_not: [handoff_message, disqualification_message, infer_unclassified_value]
+
+  - id: TS-Y3
+    title: Retrieved context conflicts with an eligibility criterion
+    basis: [DD-17]
+    rag_context: "Agricultural land is accepted as security for this loan."   # illustrative test data that deliberately contradicts the assignment
+    start: {state: ELIGIBILITY_COLLECTION, identity_verified: true, offer_presented: true, answered: *none, pending: property_type}
+    customer_turns:
+      - "It's farmland, about two acres."
+    expected:
+      end_state: CALL_TERMINATION
+      call_outcome: DISQUALIFIED
+      fields: {property_type: Agricultural}
+      next_pending: null
+      transitions: [T-10, T-14]
+      must: [disqualification_message, end_call]
+      must_not: [ask_eligibility_question, handoff_message]
