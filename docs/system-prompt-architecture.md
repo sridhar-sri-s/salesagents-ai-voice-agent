@@ -4,6 +4,8 @@ Design of the system prompt for the Home Credit Loan Against Property (LAP) qual
 
 **This document is not the system prompt.** It defines what the prompt must contain, where each instruction comes from, and how conflicts are resolved. It contains no prompt wording, no agent code and no voice-platform configuration.
 
+The prompt built from this architecture is [`prompts/system_prompt_v1.md`](../prompts/system_prompt_v1.md). Its 25 numbered sections regroup the 24 sections defined here; the mapping is in [system-prompt-traceability.md](system-prompt-traceability.md).
+
 - Requirements (`REQ-*`) and ambiguities (`AMB-*`): [assignment-requirements.md](assignment-requirements.md)
 - Business rules (`BR-*`): [business-rules.md](business-rules.md)
 - States and transitions (`T-nn`): [conversation-state-model.md](conversation-state-model.md)
@@ -579,7 +581,7 @@ A **tracked item** is an internal clarification-tracking sub-value or a branch-s
 
 ### 7.2 Pending
 
-The prompt cannot be written precisely until these are settled. None of them changes who is eligible.
+These are still undecided. None of them changes who is eligible. System Prompt V1 was written with a conservative project default for each; the defaults are listed, and the material ones flagged, in [system-prompt-traceability.md](system-prompt-traceability.md), section 5. A default there is not an approved decision.
 
 | ID | Decision needed | Sections affected | Related |
 |---|---|---|---|

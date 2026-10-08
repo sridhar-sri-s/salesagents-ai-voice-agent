@@ -2,7 +2,7 @@
 
 Machine-readable synthetic test data for the Home Credit Loan Against Property (LAP) qualification call, and the checks that keep it consistent with the specification in [`docs/`](../docs).
 
-This folder contains **no voice-agent implementation and no system prompt**. It is the input a future automated evaluation will run against.
+This folder contains **no voice-agent implementation**. The system prompt lives in [`prompts/system_prompt_v1.md`](../prompts/system_prompt_v1.md); these fixtures are the input a future automated evaluation will run it against.
 
 **All customer data here is synthetic.** No real customer, phone number, address or account detail is stored.
 
@@ -103,4 +103,4 @@ Do not add a field value, outcome or disqualifying condition to `vocabulary.yaml
 
 - A runner that plays these scenarios against an agent.
 - A judge that scores a transcript against `must` and `must_not`.
-- The system prompt and any voice-platform integration.
+- Any voice-platform integration.
