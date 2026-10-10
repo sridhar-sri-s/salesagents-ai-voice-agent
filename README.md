@@ -13,7 +13,12 @@ evaluating an AI voice agent, and packaging the result for submission.
   with its mapping back to the specification in
   [`docs/system-prompt-traceability.md`](docs/system-prompt-traceability.md).
 
-The prompt is platform-neutral and has not been run on a voice platform. There
+A Retell AI deployment copy of the prompt,
+[`prompts/retell_system_prompt_v1.md`](prompts/retell_system_prompt_v1.md), has
+been prepared with the configuration notes in
+[`docs/retell-deployment-notes.md`](docs/retell-deployment-notes.md).
+
+The approved prompt is platform-neutral and has not been run on a voice platform. There
 is no voice-platform integration, no agent code, no call recordings and no
 automated evaluation of the prompt's conversational quality yet. Some prompt
 behaviours rest on project defaults that still need a decision; they are listed
@@ -32,7 +37,7 @@ Further dependencies will be added only when the work that needs them begins.
 
 ```
 salesagents-ai-voice-agent/
-├── prompts/              # System prompt (system_prompt_v1.md)
+├── prompts/              # System prompt (approved) and its Retell deployment copy
 ├── tests/                # Automated pytest tests
 ├── evaluation/           # Synthetic test scenarios and their validator
 ├── docs/                 # Requirements, rules, state model, decisions, traceability
@@ -61,6 +66,7 @@ Where to start reading:
 | [`docs/design-decisions.md`](docs/design-decisions.md) | Project decisions for points the assignment leaves open |
 | [`docs/system-prompt-architecture.md`](docs/system-prompt-architecture.md) | Prompt structure, precedence and prompt-policy decisions |
 | [`docs/system-prompt-traceability.md`](docs/system-prompt-traceability.md) | Each prompt section mapped to its sources; unapproved defaults |
+| [`docs/retell-deployment-notes.md`](docs/retell-deployment-notes.md) | What to configure in Retell AI, and the assumptions made |
 | [`docs/test-scenarios.md`](docs/test-scenarios.md) | The test scenarios in prose |
 
 ## Getting started
